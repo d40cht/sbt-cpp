@@ -11,13 +11,13 @@ import sbt.std.{TaskStreams}
 class FunctionWithResultPath( val resultPath : File, val fn : () => File )
 {
     def apply() = fn()
-    def runIfNotCached( stateCacheDir : File, inputDeps : Set[File] ) =
+    def runIfNotCached( stateCacheDir : File, inputDeps : Seq[File] ) =
     {
         val lazyBuild = FileFunction.cached( stateCacheDir / resultPath.toString , FilesInfo.lastModified, FilesInfo.exists ) 
         { _ =>
             Set( fn() )
         }
-        lazyBuild(inputDeps)
+        lazyBuild(inputDeps.toSet)
         
         resultPath
     }
@@ -33,10 +33,10 @@ object FunctionWithResultPath
 
 trait Compiler
 {
-    def findHeaderDependencies( s : TaskStreams[_], buildDirectory : File,  includePaths : Seq[File], sourceFile : File ) : FunctionWithResultPath
-    def compileToObjectFile( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], sourceFile : File ) : FunctionWithResultPath
-    def buildStaticLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Set[File] ) : FunctionWithResultPath
-    def buildExecutable( s : TaskStreams[_], buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Set[File] ) : FunctionWithResultPath
+    def findHeaderDependencies( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File ) : FunctionWithResultPath
+    def compileToObjectFile( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File ) : FunctionWithResultPath
+    def buildStaticLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Seq[File] ) : FunctionWithResultPath
+    def buildExecutable( s : TaskStreams[_], buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) : FunctionWithResultPath
 }
 
 case class Environment( val name : String, val compiler : Compiler )
@@ -48,11 +48,12 @@ case class GccCompiler(
     val compileFlags : String = "",
     val linkFlags : String = "" ) extends Compiler
 {
-    def findHeaderDependencies( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], sourceFile : File ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
+    def findHeaderDependencies( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
     
         val includePathArg = includePaths.map( ip => "-I " + ip ).mkString(" ")
-        val depCmd = "%s %s -M %s %s".format( compilerPath, compileFlags, includePathArg, sourceFile )
+        val systemIncludePathArg = systemIncludePaths.map( ip => "-isystem " + ip ).mkString(" ")
+        val depCmd = "%s %s -M %s %s %s".format( compilerPath, compileFlags, includePathArg, systemIncludePathArg, sourceFile )
         s.log.info( "Executing: " + depCmd )
         val depResult = stringToProcess( depCmd ).lines
         
@@ -65,17 +66,18 @@ case class GccCompiler(
         IO.write( depFile, allFiles.mkString("\n") )
     }
     
-    def compileToObjectFile( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], sourceFile : File ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
+    def compileToObjectFile( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
     { outputFile =>
     
         val includePathArg = includePaths.map( ip => "-I " + ip ).mkString(" ")
-        val buildCmd = "%s %s %s -c -o %s %s".format( compilerPath, compileFlags, includePathArg, outputFile, sourceFile )
+        val systemIncludePathArg = systemIncludePaths.map( ip => "-isystem " + ip ).mkString(" ")
+        val buildCmd = "%s %s %s %s -c -o %s %s".format( compilerPath, compileFlags, includePathArg, systemIncludePathArg, outputFile, sourceFile )
                        
         s.log.info( "Executing: " + buildCmd )
         buildCmd !!
     }
     
-    def buildStaticLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Set[File] ) =
+    def buildStaticLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Seq[File] ) =
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".a") )
         { outputFile =>
         
@@ -84,7 +86,7 @@ case class GccCompiler(
             arCmd !!
         }
         
-    def buildExecutable( s : TaskStreams[_], buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Set[File] ) =
+    def buildExecutable( s : TaskStreams[_], buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) =
         FunctionWithResultPath( buildDirectory / exeName )
         { outputFile =>
         
@@ -124,11 +126,12 @@ abstract class NativeBuild extends Build
     val projectDirectory = SettingKey[File]("project-dir", "Project directory")
     val sourceDirectory = TaskKey[File]("source-dir", "Source directory")
     val includeDirectories = TaskKey[Seq[File]]("include-dirs", "Include directories")
+    val systemIncludeDirectories = TaskKey[Seq[File]]("system-include-dirs", "System include directories")
     val linkDirectories = TaskKey[Seq[File]]("link-dirs", "Link directories")
     val nativeLibraries = TaskKey[Seq[String]]("native-libraries", "All native library dependencies for this project")
-    val sourceFiles = TaskKey[Set[File]]("source-files", "All source files for this project")
-    val sourceFilesWithDeps = TaskKey[Map[File, Set[File]]]("source-files-with-deps", "All source files for this project")
-    val objectFiles = TaskKey[Set[File]]("object-files", "All object files for this project" )
+    val sourceFiles = TaskKey[Seq[File]]("source-files", "All source files for this project")
+    val sourceFilesWithDeps = TaskKey[Map[File, Seq[File]]]("source-files-with-deps", "All source files for this project")
+    val objectFiles = TaskKey[Seq[File]]("object-files", "All object files for this project" )
     val nativeCompile = TaskKey[File]("native-compile", "Perform a native compilation for this project" )
     val nativeRun = TaskKey[Unit]("native-run", "Perform a native run of this project" )
     val testProject = TaskKey[Project]("test-project", "The test sub-project for this project")
@@ -240,7 +243,9 @@ abstract class NativeBuild extends Build
                 
                 stateCacheDirectory <<= (projectBuildDirectory) map { _ / "state-cache"  },
                 
-                includeDirectories  <<= (projectDirectory) map { pd => Seq(pd / "interface") },
+                includeDirectories  <<= (projectDirectory) map { pd => Seq(pd / "interface", pd / "include") },
+                
+                systemIncludeDirectories := Seq(),
                 
                 linkDirectories     :=  Seq(),
                 
@@ -248,20 +253,20 @@ abstract class NativeBuild extends Build
                 
                 sourceDirectory     <<= (projectDirectory) map { _ / "source" },
                 
-                sourceFiles         <<= (sourceDirectory) map { pd => ((pd ** "*.cpp").get ++ (pd ** "*.c").get).toSet },
+                sourceFiles         <<= (sourceDirectory) map { pd => ((pd ** "*.cpp").get ++ (pd ** "*.c").get) },
                 
-                sourceFilesWithDeps <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, sourceFiles, streams) map
+                sourceFilesWithDeps <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFiles, streams) map
                 {
-                    case (c, bd, scd, ids, sfs, s) =>
+                    case (c, bd, scd, ids, sids, sfs, s) =>
                     
                     // Calculate dependencies
-                    def findDependencies( sourceFile : File ) : Set[File] =
+                    def findDependencies( sourceFile : File ) : Seq[File] =
                     {
-                        val depGen = c.findHeaderDependencies( s, bd, ids, sourceFile )
+                        val depGen = c.findHeaderDependencies( s, bd, ids, sids, sourceFile )
                         
-                        depGen.runIfNotCached( scd, Set(sourceFile) )
+                        depGen.runIfNotCached( scd, Seq(sourceFile) )
                         
-                        IO.readLines(depGen.resultPath).map( file ).toSet
+                        IO.readLines(depGen.resultPath).map( file )
                     }
                     
                     sfs.map( sf => (sf, findDependencies(sf) ) ).toMap
@@ -269,20 +274,20 @@ abstract class NativeBuild extends Build
                 
                 watchSources        <++= (sourceFilesWithDeps) map { sfd => sfd.toList.flatMap { case (sf, deps) => (sf +: deps.toList) } },
                 
-                objectFiles         <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, sourceFiles, sourceFilesWithDeps, streams) map
-                { case (c, bd, scd, ids, sfs, sfdeps, s) =>
+                objectFiles         <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFiles, sourceFilesWithDeps, streams) map
+                { case (c, bd, scd, ids, sids, sfs, sfdeps, s) =>
                     
                     // Build each source file in turn as required
                     sfs.map
                     { sourceFile =>
                         
-                        val dependencies = sfdeps(sourceFile) + sourceFile
+                        val dependencies = sfdeps(sourceFile) :+ sourceFile
                         
                         s.log.debug( "Dependencies for %s: %s".format( sourceFile, dependencies.mkString(";") ) )
                         
-                        val blf = c.compileToObjectFile( s, bd, ids, sourceFile )
+                        val blf = c.compileToObjectFile( s, bd, ids, sids, sourceFile )
                         
-                        blf.runIfNotCached( scd, dependencies.toSet )
+                        blf.runIfNotCached( scd, dependencies )
                     }
                 }
             )
@@ -378,11 +383,11 @@ abstract class NativeBuild extends Build
             {
                 val testName = _name + "_test"
                 
-                NativeExecutable2( testName, testDir, _settings ++ Seq
+                NativeExecutable2( testName, testDir, Seq
                 (
                     includeDirectories  <++= (includeDirectories in mainLibrary),
                     objectFiles         <+= (nativeCompile in mainLibrary)
-                ) ) 
+                ) ++ _settings ) 
             }
             
             mainLibrary
