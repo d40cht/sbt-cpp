@@ -119,7 +119,7 @@ abstract class NativeBuild extends Build
     //val archiveExe = SettingKey[File]("archive", "Path to archive executable")
     
     val compiler = TaskKey[Compiler]("native-compiler")
-    val buildEnvironment = SettingKey[Option[Environment]]("build-environment")
+    val buildEnvironment = TaskKey[Option[Environment]]("build-environment")
     val rootBuildDirectory = TaskKey[File]("root-build-dir", "Build root directory (for the config, not the project)")
     val projectBuildDirectory = TaskKey[File]("project-build-dir", "Build directory for this config and project")
     val stateCacheDirectory = TaskKey[File]("state-cache-dir", "Build state cache directory")
@@ -137,6 +137,8 @@ abstract class NativeBuild extends Build
     val testProject = TaskKey[Project]("test-project", "The test sub-project for this project")
     val test = TaskKey[Unit]("test", "Run the test associated with this project" )
     
+    val envKey = AttributeKey[Environment]("envKey")
+    
     val buildOptsParser = Space ~> configurations.map( x => token(x.name) ).reduce(_ | _)
     
     def setBuildConfigCommand = Command("build-environment")(_ => buildOptsParser)
@@ -145,58 +147,10 @@ abstract class NativeBuild extends Build
    
         val envDict = configurations.map( x => (x.name, x) ).toMap
         val env = envDict(envName)
+
+        val updatedAttributes = state.attributes.put( envKey, env )
         
-        val extracted : Extracted = Project.extract(state)
-        
-        // Reconfigure all projects to this new build config
-        val buildEnvironmentUpdateCommands = extracted.structure.allProjectRefs.map
-        { pref =>
-        
-            (buildEnvironment in pref) := Some(env)
-        }
-        
-        extracted.append( buildEnvironmentUpdateCommands, state )
-    }
-   
-    def buildCommand = Command.command("build")
-    { state =>
-   
-        // TODO: This is NOT HOW IT SHOULD BE. We need to get SBT to use its
-        // own internal dependency analysis mechanism here. Yuk yuk yuk.
-        val extracted : Extracted = Project.extract(state)
-        
-        var seenProjectIds = Set[String]()
-        def buildProjectRecursively( project : ResolvedProject, projectRef : ProjectRef )
-        {
-            def scheduleProjectRef( projectReference : ProjectRef ) =
-            {
-                val resolvedO = Project.getProjectForReference( projectReference, extracted.structure )
-                
-                
-                resolvedO.foreach
-                { r =>
-                    if ( !seenProjectIds.contains( r.id ) )
-                    {
-                        seenProjectIds += r.id
-                        buildProjectRecursively( r, projectReference )
-                    }
-                }
-            }
-            
-            project.dependencies.foreach { cpd => scheduleProjectRef( cpd.project ) }
-            project.aggregate.foreach { agg => scheduleProjectRef( agg ) }
-            
-            Project.runTask(
-                // The task to run
-                nativeCompile in projectRef,
-                state,
-                // Check for cycles
-                true )
-        }
-        
-        buildProjectRecursively( extracted.currentProject, extracted.currentRef )
-            
-        state
+        state.copy( attributes=updatedAttributes )
     }
     
     class RichNativeProject( val p : Project )
@@ -229,9 +183,12 @@ abstract class NativeBuild extends Build
                 
                 projectDirectory    := _projectDirectory,
             
-                commands            ++= Seq( buildCommand, setBuildConfigCommand ),
+                commands            += setBuildConfigCommand,
                 
-                buildEnvironment    := None,
+                buildEnvironment    <<= state map
+                { s =>
+                    s.attributes.get( envKey )
+                },
                 
                 rootBuildDirectory  <<= (baseDirectory, buildEnvironment) map
                 { case (bd, beo) =>
