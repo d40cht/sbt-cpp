@@ -135,6 +135,7 @@ abstract class NativeBuild extends Build
     val nativeCompile = TaskKey[File]("native-compile", "Perform a native compilation for this project" )
     val nativeRun = TaskKey[Unit]("native-run", "Perform a native run of this project" )
     val testProject = TaskKey[Project]("test-project", "The test sub-project for this project")
+    val test = TaskKey[Unit]("test", "Run the test associated with this project" )
     
     val buildOptsParser = Space ~> configurations.map( x => token(x.name) ).reduce(_ | _)
     
@@ -197,20 +198,36 @@ abstract class NativeBuild extends Build
             
         state
     }
+    
+    class RichNativeProject( val p : Project )
+    {
+        def nativeDependsOn( others : Project* ) : Project =
+        {
+            others.foldLeft(p)
+            { case (np, other) =>
+                np.settings(
+                    includeDirectories  <+= (projectDirectory in other) map { pd => pd / "interface" },
+                    objectFiles         <+= (nativeCompile in other) )
+            }
+        }
+        def register() : Project = 
+        {
+            registerProject(p)
+            
+            p
+        }
+    }
+    
+    implicit def toRichNativeProject( p : Project ) = new RichNativeProject(p)
 
     object NativeProject
     {
-         def apply(
-            id: String,
-            base: File,
-            aggregate : => Seq[ProjectReference] = Nil,
-            dependencies : => Seq[ClasspathDep[ProjectReference]] = Nil,
-            delegates : => Seq[ProjectReference] = Nil,
-            settings : => Seq[sbt.Project.Setting[_]] = Nil,
-            configurations : Seq[Configuration] = Configurations.default )( implicit nb : NativeBuild ) =
+        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]] ) =
         {
             val defaultSettings = Seq(
-                name                := id,
+                name                := _name,
+                
+                projectDirectory    := _projectDirectory,
             
                 commands            ++= Seq( buildCommand, setBuildConfigCommand ),
                 
@@ -269,7 +286,7 @@ abstract class NativeBuild extends Build
                         IO.readLines(depGen.resultPath).map( file )
                     }
                     
-                    sfs.map( sf => (sf, findDependencies(sf) ) ).toMap
+                    sfs.par.map( sf => (sf, findDependencies(sf) ) ).seq.toMap
                 },
                 
                 watchSources        <++= (sourceFilesWithDeps) map { sfd => sfd.toList.flatMap { case (sf, deps) => (sf +: deps.toList) } },
@@ -278,7 +295,7 @@ abstract class NativeBuild extends Build
                 { case (c, bd, scd, ids, sids, sfs, sfdeps, s) =>
                     
                     // Build each source file in turn as required
-                    sfs.map
+                    sfs.par.map
                     { sourceFile =>
                         
                         val dependencies = sfdeps(sourceFile) :+ sourceFile
@@ -288,28 +305,25 @@ abstract class NativeBuild extends Build
                         val blf = c.compileToObjectFile( s, bd, ids, sids, sourceFile )
                         
                         blf.runIfNotCached( scd, dependencies )
-                    }
+                    }.seq
+                },
+                
+                test                <<= (streams) map
+                { s =>
+                
+                    s.log.info( "No tests defined for this project" )
                 }
             )
             
-            val p = Project( id, base, aggregate, dependencies, delegates, defaultSettings ++ settings, configurations )
-            nb.registerProject(p)
+            val p = Project( id=_name, base=file("./"), settings=defaultSettings ++ _settings )
             
             p
         }
     }
 
-
     object StaticLibrary
     {
-        def apply(
-            id: String,
-            base: File,
-            aggregate : => Seq[ProjectReference] = Nil,
-            dependencies : => Seq[ClasspathDep[ProjectReference]] = Nil,
-            delegates : => Seq[ProjectReference] = Nil,
-            settings : => Seq[sbt.Project.Setting[_]],
-            configurations : Seq[Configuration] = Configurations.default ) =
+        private def buildLib( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]] ) =
         {
             val defaultSettings = Seq(
                 nativeCompile <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, streams) map
@@ -324,20 +338,56 @@ abstract class NativeBuild extends Build
                 
                 
             )
-            NativeProject( id, base, aggregate, dependencies, delegates, defaultSettings ++ settings, configurations )
+            NativeProject( _name, _projectDirectory, defaultSettings ++ settings )
+        }
+        
+        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]] ) =
+        {
+            val mainLibrary = buildLib( _name, _projectDirectory, _settings )
+                    
+            
+            val testDir = (_projectDirectory / "test")
+            if ( testDir.exists )
+            {
+                val testName = _name + "_test"
+                
+                NativeTest( testName, testDir, Seq
+                (
+                    includeDirectories  <++= (includeDirectories in mainLibrary),
+                    objectFiles         <+= (nativeCompile in mainLibrary)
+                ) ++ _settings ) 
+            }
+            
+            mainLibrary
+        }
+    }
+    
+    object NativeTest
+    {
+        def apply( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]] ) =
+        {
+            val defaultSettings = Seq(
+                nativeCompile <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkDirectories, nativeLibraries, streams) map
+                { case (c, projName, bd, scd, ofs, lds, nls, s) =>
+                
+                    val blf = c.buildExecutable( s, bd, projName, lds, nls, ofs )
+                    
+                    blf.runIfNotCached( scd, ofs )
+                },
+                compile <<= nativeCompile map { nc => sbt.inc.Analysis.Empty },
+                test <<= nativeCompile map { ncExe =>
+                    val res = ncExe.toString !
+                
+                    if ( res != 0 ) sys.error( "Non-zero exit code: " + res.toString )
+                }
+            )
+            NativeProject( _name, _projectDirectory, defaultSettings ++ settings )
         }
     }
 
     object NativeExecutable
     {
-        def apply(
-            id: String,
-            base: File,
-            aggregate : => Seq[ProjectReference] = Nil,
-            dependencies : => Seq[ClasspathDep[ProjectReference]] = Nil,
-            delegates : => Seq[ProjectReference] = Nil,
-            settings : => Seq[sbt.Project.Setting[_]] = Defaults.defaultSettings,
-            configurations : Seq[Configuration] = Configurations.default ) =
+        def apply( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]] ) =
         {
             val defaultSettings = Seq(
                 nativeCompile <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkDirectories, nativeLibraries, streams) map
@@ -359,40 +409,11 @@ abstract class NativeBuild extends Build
                     }
                 }
             )
-            NativeProject( id, base, aggregate, dependencies, delegates, defaultSettings ++ settings, configurations )
+            NativeProject( _name, _projectDirectory, defaultSettings ++ settings )
         }
     }
-
-    object NativeExecutable2
-    {
-        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]] ) =
-        {
-            NativeExecutable( id=_name, base=file("./"), settings=Seq( projectDirectory := _projectDirectory ) ++ _settings )
-        }
-    }
-
-    object StaticLibrary2
-    {
-        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]] ) =
-        {
-            val mainLibrary = StaticLibrary( id=_name, base=file("./"), settings=Seq( projectDirectory := _projectDirectory ) ++ _settings )
-                    
-            
-            val testDir = (_projectDirectory / "test")
-            if ( testDir.exists )
-            {
-                val testName = _name + "_test"
-                
-                NativeExecutable2( testName, testDir, Seq
-                (
-                    includeDirectories  <++= (includeDirectories in mainLibrary),
-                    objectFiles         <+= (nativeCompile in mainLibrary)
-                ) ++ _settings ) 
-            }
-            
-            mainLibrary
-        }
-    }
+    
+    
 }
 
 
