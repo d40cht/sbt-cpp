@@ -103,14 +103,15 @@ abstract class NativeBuild extends Build
 {
     private val projectsBuffer = mutable.ArrayBuffer[Project]()
     
-    override def projects: Seq[Project] = projectsBuffer
+    private def projectRefs = projectsBuffer.map( p => LocalProject(p.id) )
+    
+    override def projects: Seq[Project] = NativeProject("all", file("."), Seq()).aggregate( projectRefs : _* ) +: projectsBuffer
     def registerProject( p : Project ) =
     {
-        println( "Registering: " + p.id )
         projectsBuffer.append(p)
     }
     
-    implicit val nbuild = this
+    //implicit val nbuild = this
 
     def configurations : Set[Environment]
 
