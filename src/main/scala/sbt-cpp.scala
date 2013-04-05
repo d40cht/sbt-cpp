@@ -123,8 +123,8 @@ abstract class NativeBuild extends Build
     val rootBuildDirectory = TaskKey[File]("root-build-dir", "Build root directory (for the config, not the project)")
     val projectBuildDirectory = TaskKey[File]("project-build-dir", "Build directory for this config and project")
     val stateCacheDirectory = TaskKey[File]("state-cache-dir", "Build state cache directory")
-    val projectDirectory = SettingKey[File]("project-dir", "Project directory")
-    val sourceDirectory = TaskKey[File]("source-dir", "Source directory")
+    val projectDirectory = TaskKey[File]("project-dir", "Project directory")
+    val sourceDirectories = TaskKey[Seq[File]]("source-dir", "Source directory")
     val includeDirectories = TaskKey[Seq[File]]("include-dirs", "Include directories")
     val systemIncludeDirectories = TaskKey[Seq[File]]("system-include-dirs", "System include directories")
     val linkDirectories = TaskKey[Seq[File]]("link-dirs", "Link directories")
@@ -132,10 +132,15 @@ abstract class NativeBuild extends Build
     val sourceFiles = TaskKey[Seq[File]]("source-files", "All source files for this project")
     val sourceFilesWithDeps = TaskKey[Map[File, Seq[File]]]("source-files-with-deps", "All source files for this project")
     val objectFiles = TaskKey[Seq[File]]("object-files", "All object files for this project" )
-    val nativeCompile = TaskKey[File]("native-compile", "Perform a native compilation for this project" )
+    val nativeExe = TaskKey[File]("native-exe", "Executable built by this project (if appropriate)" )
     val nativeRun = TaskKey[Unit]("native-run", "Perform a native run of this project" )
     val testProject = TaskKey[Project]("test-project", "The test sub-project for this project")
     val test = TaskKey[Unit]("test", "Run the test associated with this project" )
+    
+    val exportedLibs = TaskKey[Seq[File]]("exported-libs", "All libraries exported by this project" )
+    val exportedLibDirectories = TaskKey[Seq[File]]("exported-lib-directories", "All library directories exported by this project" )
+    val exportedIncludeDirectories = TaskKey[Seq[File]]("exported-include-directories", "All include directories exported by this project" )
+
     
     val envKey = AttributeKey[Environment]("envKey")
     
@@ -160,8 +165,9 @@ abstract class NativeBuild extends Build
             others.foldLeft(p)
             { case (np, other) =>
                 np.settings(
-                    includeDirectories  <+= (projectDirectory in other) map { pd => pd / "interface" },
-                    objectFiles         <+= (nativeCompile in other) )
+                    includeDirectories  <++= (exportedIncludeDirectories in other),
+                    objectFiles         <++= (exportedLibs in other),
+                    compile             <<=  compile.dependsOn(exportedLibs in other) )
             }
         }
         def register() : Project = 
@@ -181,7 +187,7 @@ abstract class NativeBuild extends Build
             val defaultSettings = Seq(
                 name                := _name,
                 
-                projectDirectory    := _projectDirectory,
+                projectDirectory    <<= baseDirectory map { bd => (bd / _projectDirectory.toString) },
             
                 commands            += setBuildConfigCommand,
                 
@@ -225,9 +231,9 @@ abstract class NativeBuild extends Build
                 
                 nativeLibraries     <<= (projectBuildDirectory) map { _ => Seq() },
                 
-                sourceDirectory     <<= (projectDirectory) map { _ / "source" },
+                sourceDirectories  <<= (projectDirectory) map { pd => Seq(pd / "source") },
                 
-                sourceFiles         <<= (sourceDirectory) map { pd => ((pd ** "*.cpp").get ++ (pd ** "*.c").get) },
+                sourceFiles         <<= (sourceDirectories) map { _.flatMap { sd => ((sd * "*.cpp").get ++ (sd * "*.c").get) } },
                 
                 sourceFilesWithDeps <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFiles, streams) map
                 {
@@ -265,11 +271,11 @@ abstract class NativeBuild extends Build
                     }.seq
                 },
                 
-                test                <<= (streams) map
-                { s =>
-                
-                    s.log.info( "No tests defined for this project" )
-                }
+                test                        <<= (streams) map { s => s.log.info( "No tests defined for this project" ) },
+                exportedLibs                <<= (streams) map { s => s.log.info( "No libraries exported by this project" ); Seq() },
+                exportedLibDirectories      <<= (streams) map { s => s.log.info( "No library paths exported by this project" ); Seq() },
+                exportedIncludeDirectories  <<= (streams) map { s => s.log.info( "No include directories exported by this project" ); Seq() },
+                nativeExe                   <<= (streams) map { s => s.log.info( "No executable built by this project" ); file("") }
             )
             
             val p = Project( id=_name, base=file("./"), settings=defaultSettings ++ _settings )
@@ -283,15 +289,16 @@ abstract class NativeBuild extends Build
         private def buildLib( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]] ) =
         {
             val defaultSettings = Seq(
-                nativeCompile <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, streams) map
+                exportedLibs <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, streams) map
                 { case (c, projName, bd, scd, ofs, s) =>
                 
                     val blf = c.buildStaticLibrary( s, bd, projName, ofs )
                     
-                    blf.runIfNotCached( scd, ofs )
+                    Seq( blf.runIfNotCached( scd, ofs ) )
                 },
-                //(compile in Compile) <<= (compile in Compile) dependsOn (nativeCompile)
-                compile <<= nativeCompile map { nc => sbt.inc.Analysis.Empty }
+                exportedIncludeDirectories  <<= (projectDirectory) map { pd => Seq(pd / "interface") },
+                exportedLibDirectories      <<= exportedLibs map { _.map( _.getParentFile ).distinct },
+                compile                     <<= exportedLibs map { nc => sbt.inc.Analysis.Empty }
                 
                 
             )
@@ -311,7 +318,7 @@ abstract class NativeBuild extends Build
                 NativeTest( testName, testDir, Seq
                 (
                     includeDirectories  <++= (includeDirectories in mainLibrary),
-                    objectFiles         <+= (nativeCompile in mainLibrary)
+                    objectFiles         <++= (exportedLibs in mainLibrary)
                 ) ++ _settings ) 
             }
             
@@ -324,15 +331,15 @@ abstract class NativeBuild extends Build
         def apply( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]] ) =
         {
             val defaultSettings = Seq(
-                nativeCompile <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkDirectories, nativeLibraries, streams) map
+                nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkDirectories, nativeLibraries, streams) map
                 { case (c, projName, bd, scd, ofs, lds, nls, s) =>
                 
                     val blf = c.buildExecutable( s, bd, projName, lds, nls, ofs )
                     
                     blf.runIfNotCached( scd, ofs )
                 },
-                compile <<= nativeCompile map { nc => sbt.inc.Analysis.Empty },
-                test <<= nativeCompile map { ncExe =>
+                compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
+                test <<= nativeExe map { ncExe =>
                     val res = ncExe.toString !
                 
                     if ( res != 0 ) sys.error( "Non-zero exit code: " + res.toString )
@@ -347,17 +354,17 @@ abstract class NativeBuild extends Build
         def apply( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]] ) =
         {
             val defaultSettings = Seq(
-                nativeCompile <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkDirectories, nativeLibraries, streams) map
+                nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkDirectories, nativeLibraries, streams) map
                 { case (c, projName, bd, scd, ofs, lds, nls, s) =>
                 
                     val blf = c.buildExecutable( s, bd, projName, lds, nls, ofs )
                     
                     blf.runIfNotCached( scd, ofs )
                 },
-                compile <<= nativeCompile map { nc => sbt.inc.Analysis.Empty },
+                compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
                 run <<= inputTask { (argTask: TaskKey[Seq[String]]) =>
                     
-                    (argTask, nativeCompile, streams) map
+                    (argTask, nativeExe, streams) map
                     { case (args, nbExe, s) =>
                     
                         val res = (nbExe.toString + " " + args.mkString(" ")) !
