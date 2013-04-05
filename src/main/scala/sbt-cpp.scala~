@@ -318,7 +318,7 @@ abstract class NativeBuild extends Build
         {
 
             val testDir = (_projectDirectory / "test")
-            val subProjectBuilders : SubProjectBuilders = if ( testDir.exists )
+            val subProjectBuilders = if ( testDir.exists )
             {
                 val testName = _name + "_test"
                 
