@@ -181,11 +181,11 @@ abstract class NativeBuild extends Build
     
     class NativeProject( val p : Project, val subProjectBuilders : SubProjectBuilders )
     {
-        def nativeDependsOn( others : Project* ) : NativeProject =
+        def nativeDependsOn( others : ProjectReference* ) : NativeProject =
         {
             val newP = others.foldLeft(p)
             { case (np, other) =>
-                np.settings(
+                np.dependsOn( other ).settings(
                     includeDirectories  <++= (exportedIncludeDirectories in other),
                     objectFiles         <++= (exportedLibs in other),
                     compile             <<=  compile.dependsOn(exportedLibs in other) )
@@ -196,14 +196,15 @@ abstract class NativeBuild extends Build
     }
     
     implicit def toProject( rnp : NativeProject ) = rnp.p
-    implicit def toProjectRef( rnp : NativeProject ) = LocalProject(rnp.p.id)
+    implicit def toProjectRef( rnp : NativeProject ) : ProjectReference = LocalProject(rnp.p.id)
     
     object NativeProject
     {
     
         private def taskMapReduce[T, S]( inputs : Seq[T] )( mapFn : T => S )( reduceFn : (S, S) => S ) : Task[S] =
         {
-            val taskSeq : Seq[Task[S]] = inputs.map( i => toTask( () => mapFn(i) ) )
+            val taskSeq : Seq[Task[S]] = inputs.map( i => toTask( () => mapFn(i) ) ).toIndexedSeq
+            
             val reduceRes : Task[S] = sbt.std.TaskExtra.reduced( taskSeq.toIndexedSeq, reduceFn )
             
             reduceRes
@@ -241,7 +242,6 @@ abstract class NativeBuild extends Build
                 },
                 
                 clean               <<= (rootBuildDirectory) map { rbd => IO.delete(rbd) },
-                
                 
                 cleanAll            <<= (target) map { td => IO.delete(td) },
                 
@@ -365,6 +365,7 @@ abstract class NativeBuild extends Build
             mainLibrary
         }
     }
+    
     
     object NativeTest
     {
