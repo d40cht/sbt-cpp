@@ -120,9 +120,15 @@ abstract class NativeBuild extends Build
         val allProjects = allProjectVals ++ nativeProjectVals.map( _.p ) ++ nativeSubProjects
         val allProjectRefs = allProjects.map( p => LocalProject(p.id) )
         
-        val aggregateProject = NativeProject("all", file("."), Seq()).aggregate( allProjectRefs : _* )
-        
-        aggregateProject +: allProjects
+        // If there isn't an 'all' project, make one
+        if ( allProjects.map( _.id ) contains "all" )
+        {
+            allProjects
+        }
+        else
+        {
+            NativeProject("all", file("."), Seq()).aggregate( allProjectRefs : _* ) +: allProjects
+        }
     }
 
     type BuildType <: BuildTypeTrait
@@ -143,8 +149,9 @@ abstract class NativeBuild extends Build
     val linkDirectories = TaskKey[Seq[File]]("link-dirs", "Link directories")
     val nativeLibraries = TaskKey[Seq[String]]("native-libraries", "All native library dependencies for this project")
     val sourceFiles = TaskKey[Seq[File]]("source-files", "All source files for this project")
-    val sourceFilesWithDeps = TaskKey[Map[File, Seq[File]]]("source-files-with-deps", "All source files for this project")
+    val sourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("source-files-with-deps", "All source files for this project")
     val objectFiles = TaskKey[Seq[File]]("object-files", "All object files for this project" )
+    val objectFiles2 = TaskKey[Seq[File]]("object-files", "All object files for this project" )
     val nativeExe = TaskKey[File]("native-exe", "Executable built by this project (if appropriate)" )
     val nativeRun = TaskKey[Unit]("native-run", "Perform a native run of this project" )
     val testProject = TaskKey[Project]("test-project", "The test sub-project for this project")
@@ -190,9 +197,18 @@ abstract class NativeBuild extends Build
     
     implicit def toProject( rnp : NativeProject ) = rnp.p
     implicit def toProjectRef( rnp : NativeProject ) = LocalProject(rnp.p.id)
-
+    
     object NativeProject
     {
+    
+        private def taskMapReduce[T, S]( inputs : Seq[T] )( mapFn : T => S )( reduceFn : (S, S) => S ) : Task[S] =
+        {
+            val taskSeq : Seq[Task[S]] = inputs.map( i => toTask( () => mapFn(i) ) )
+            val reduceRes : Task[S] = sbt.std.TaskExtra.reduced( taskSeq.toIndexedSeq, reduceFn )
+            
+            reduceRes
+        }
+        
         def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], subProjectBuilders : SubProjectBuilders = Seq() ) =
         {
             val defaultSettings = Seq(
@@ -255,7 +271,7 @@ abstract class NativeBuild extends Build
                 
                 sourceFiles         <<= (sourceDirectories) map { _.flatMap { sd => ((sd * "*.cpp").get ++ (sd * "*.c").get) } },
                 
-                sourceFilesWithDeps <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFiles, streams) map
+                sourceFilesWithDeps <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFiles, streams) flatMap
                 {
                     case (c, bd, scd, ids, sids, sfs, s) =>
                     
@@ -269,26 +285,23 @@ abstract class NativeBuild extends Build
                         IO.readLines(depGen.resultPath).map( file )
                     }
                     
-                    sfs.par.map( sf => (sf, findDependencies(sf) ) ).seq.toMap
+                    taskMapReduce( sfs ) { sf => Seq( (sf, findDependencies(sf)) ) }( _ ++ _ )
+                    //sfs.par.map( sf => (sf, findDependencies(sf) ) ).seq
                 },
                 
                 watchSources        <++= (sourceFilesWithDeps) map { sfd => sfd.toList.flatMap { case (sf, deps) => (sf +: deps.toList) } },
                 
-                objectFiles         <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFiles, sourceFilesWithDeps, streams) map
-                { case (c, bd, scd, ids, sids, sfs, sfdeps, s) =>
+                objectFiles        <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFilesWithDeps, streams) flatMap {
                     
-                    // Build each source file in turn as required
-                    sfs.par.map
-                    { sourceFile =>
-                        
-                        val dependencies = sfdeps(sourceFile) :+ sourceFile
-                        
-                        s.log.debug( "Dependencies for %s: %s".format( sourceFile, dependencies.mkString(";") ) )
-                        
+                    case (c, bd, scd, ids, sids, sfwdeps, s) =>
+                    
+                    taskMapReduce( sfwdeps )
+                    { case (sourceFile, dependencies) =>
+                    
                         val blf = c.compileToObjectFile( s, bd, ids, sids, sourceFile )
                         
-                        blf.runIfNotCached( scd, dependencies )
-                    }.seq
+                        Seq(blf.runIfNotCached( scd, dependencies ))
+                    }( _ ++ _ )
                 },
                 
                 test                        <<= (streams) map { s => s.log.info( "No tests defined for this project" ) },
@@ -325,10 +338,11 @@ abstract class NativeBuild extends Build
             NativeProject( _name, _projectDirectory, defaultSettings ++ settings, subProjectBuilders )
         }
         
-        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], ignoreTestDir : Boolean = true ) =
+        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], ignoreTestDir : Boolean = false ) =
         {
 
             val testDir = (_projectDirectory / "test")
+            
             val subProjectBuilders : SubProjectBuilders = if ( !ignoreTestDir && testDir.exists )
             {
                 val testName = _name + "_test"
@@ -338,7 +352,7 @@ abstract class NativeBuild extends Build
                     NativeTest( testName, testDir, Seq
                     (
                         includeDirectories  <++= (includeDirectories in mainLibrary),
-                        objectFiles         <++= (exportedLibs in mainLibrary)
+                        objectFiles         <++= /*(exportedLibs in mainLibrary) ++*/ (objectFiles in mainLibrary)
                     ) ++ _settings )
                 }
                 
