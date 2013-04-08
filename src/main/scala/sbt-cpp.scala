@@ -39,7 +39,13 @@ trait Compiler
     def buildExecutable( s : TaskStreams[_], buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) : FunctionWithResultPath
 }
 
-case class Environment( val name : String, val compiler : Compiler )
+trait BuildTypeTrait
+{
+    def name        : String
+    def pathDirs    : Seq[String]
+}
+
+case class Environment( val conf : BuildTypeTrait, val compiler : Compiler )
 
 case class GccCompiler(
     val compilerPath : File,
@@ -144,13 +150,13 @@ abstract class NativeBuild extends Build
     
     val envKey = AttributeKey[Environment]("envKey")
     
-    val buildOptsParser = Space ~> configurations.map( x => token(x.name) ).reduce(_ | _)
+    val buildOptsParser = Space ~> configurations.map( x => token(x.conf.name) ).reduce(_ | _)
     
     def setBuildConfigCommand = Command("build-environment")(_ => buildOptsParser)
     {
         (state, envName) =>
    
-        val envDict = configurations.map( x => (x.name, x) ).toMap
+        val envDict = configurations.map( x => (x.conf.name, x) ).toMap
         val env = envDict(envName)
 
         val updatedAttributes = state.attributes.put( envKey, env )
@@ -196,18 +202,24 @@ abstract class NativeBuild extends Build
                     s.attributes.get( envKey )
                 },
                 
-                rootBuildDirectory  <<= (baseDirectory, buildEnvironment) map
-                { case (bd, beo) =>
+                target              <<= baseDirectory { _ / "target" / "native" },
+                
+                historyPath         <<= target { t => Some(t / ".history") },
+                
+                rootBuildDirectory  <<= (target, buildEnvironment) map
+                { case (td, beo) =>
                 
                     if ( beo.isEmpty ) sys.error( "Please set a build configuration using the build-environment command" )
                     val be = beo.get
                 
-                    val dir = bd / "sbtbuild" / be.name
+                    val dir = be.conf.pathDirs.foldLeft( td )( _ / _ )
                     
                     IO.createDirectory(dir)
                     
                     dir
                 },
+                
+                clean               <<= (rootBuildDirectory) map { rbd => IO.delete(rbd) },
                 
                 compiler            <<= (buildEnvironment) map { _.get.compiler },
                 
