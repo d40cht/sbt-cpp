@@ -33,8 +33,8 @@ object FunctionWithResultPath
 
 trait Compiler
 {
-    def findHeaderDependencies( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File ) : FunctionWithResultPath
-    def compileToObjectFile( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File ) : FunctionWithResultPath
+    def findHeaderDependencies( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) : FunctionWithResultPath
+    def compileToObjectFile( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) : FunctionWithResultPath
     def buildStaticLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Seq[File] ) : FunctionWithResultPath
     def buildExecutable( s : TaskStreams[_], buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) : FunctionWithResultPath
 }
@@ -45,7 +45,7 @@ trait BuildTypeTrait
     def pathDirs    : Seq[String]
 }
 
-case class Environment( val conf : BuildTypeTrait, val compiler : Compiler )
+
 
 case class GccCompiler(
     val compilerPath : File,
@@ -54,12 +54,13 @@ case class GccCompiler(
     val compileFlags : String = "",
     val linkFlags : String = "" ) extends Compiler
 {
-    def findHeaderDependencies( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
+    def findHeaderDependencies( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
     
         val includePathArg = includePaths.map( ip => "-I " + ip ).mkString(" ")
         val systemIncludePathArg = systemIncludePaths.map( ip => "-isystem " + ip ).mkString(" ")
-        val depCmd = "%s %s -M %s %s %s".format( compilerPath, compileFlags, includePathArg, systemIncludePathArg, sourceFile )
+        val additionalFlags = compilerFlags.mkString(" ")
+        val depCmd = "%s %s %s -M %s %s %s".format( compilerPath, compileFlags, additionalFlags, includePathArg, systemIncludePathArg, sourceFile )
         s.log.info( "Executing: " + depCmd )
         val depResult = stringToProcess( depCmd ).lines
         
@@ -72,12 +73,13 @@ case class GccCompiler(
         IO.write( depFile, allFiles.mkString("\n") )
     }
     
-    def compileToObjectFile( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
+    def compileToObjectFile( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
     { outputFile =>
     
         val includePathArg = includePaths.map( ip => "-I " + ip ).mkString(" ")
         val systemIncludePathArg = systemIncludePaths.map( ip => "-isystem " + ip ).mkString(" ")
-        val buildCmd = "%s %s %s %s -c -o %s %s".format( compilerPath, compileFlags, includePathArg, systemIncludePathArg, outputFile, sourceFile )
+        val additionalFlags = compilerFlags.mkString(" ")
+        val buildCmd = "%s %s %s %s %s -c -o %s %s".format( compilerPath, compileFlags, additionalFlags, includePathArg, systemIncludePathArg, outputFile, sourceFile )
                        
         s.log.info( "Executing: " + buildCmd )
         buildCmd !!
@@ -132,13 +134,16 @@ abstract class NativeBuild extends Build
     }
 
     type BuildType <: BuildTypeTrait
+    
+    case class Environment( val conf : BuildType, val compiler : Compiler )
+    
     def configurations : Set[Environment]
     
 
     type Sett = Project.Setting[_]
 
     val compiler = TaskKey[Compiler]("native-compiler")
-    val buildEnvironment = TaskKey[Option[Environment]]("build-environment")
+    val buildEnvironment = TaskKey[Environment]("build-environment")
     val rootBuildDirectory = TaskKey[File]("root-build-dir", "Build root directory (for the config, not the project)")
     val projectBuildDirectory = TaskKey[File]("project-build-dir", "Build directory for this config and project")
     val stateCacheDirectory = TaskKey[File]("state-cache-dir", "Build state cache directory")
@@ -157,6 +162,7 @@ abstract class NativeBuild extends Build
     val testProject = TaskKey[Project]("test-project", "The test sub-project for this project")
     val test = TaskKey[Unit]("test", "Run the test associated with this project" )
     val cleanAll = TaskKey[Unit]("clean-all", "Clean the entire build directory" )
+    val cppCompileFlags = TaskKey[Seq[String]]("cpp-compile-flags", "C++ compile flags")
     
     val exportedLibs = TaskKey[Seq[File]]("exported-libs", "All libraries exported by this project" )
     val exportedLibDirectories = TaskKey[Seq[File]]("exported-lib-directories", "All library directories exported by this project" )
@@ -221,7 +227,10 @@ abstract class NativeBuild extends Build
                 
                 buildEnvironment    <<= state map
                 { s =>
-                    s.attributes.get( envKey )
+                    val beo = s.attributes.get( envKey )
+                    if ( beo.isEmpty ) sys.error( "Please set a build configuration using the build-environment command" )
+                    
+                    beo.get
                 },
                 
                 target              <<= baseDirectory { _ / "target" / "native" },
@@ -229,10 +238,7 @@ abstract class NativeBuild extends Build
                 historyPath         <<= target { t => Some(t / ".history") },
                 
                 rootBuildDirectory  <<= (target, buildEnvironment) map
-                { case (td, beo) =>
-                
-                    if ( beo.isEmpty ) sys.error( "Please set a build configuration using the build-environment command" )
-                    val be = beo.get
+                { case (td, be) =>
                 
                     val dir = be.conf.pathDirs.foldLeft( td )( _ / _ )
                     
@@ -245,7 +251,7 @@ abstract class NativeBuild extends Build
                 
                 cleanAll            <<= (target) map { td => IO.delete(td) },
                 
-                compiler            <<= (buildEnvironment) map { _.get.compiler },
+                compiler            <<= (buildEnvironment) map { _.compiler },
                 
                 projectBuildDirectory <<= (rootBuildDirectory, name) map
                 { case (rbd, n) =>
@@ -271,14 +277,16 @@ abstract class NativeBuild extends Build
                 
                 sourceFiles         <<= (sourceDirectories) map { _.flatMap { sd => ((sd * "*.cpp").get ++ (sd * "*.c").get) } },
                 
-                sourceFilesWithDeps <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFiles, streams) flatMap
+                cppCompileFlags     := Seq(),
+                
+                sourceFilesWithDeps <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFiles, cppCompileFlags, streams) flatMap
                 {
-                    case (c, bd, scd, ids, sids, sfs, s) =>
+                    case (c, bd, scd, ids, sids, sfs, cfs, s) =>
                     
                     // Calculate dependencies
                     def findDependencies( sourceFile : File ) : Seq[File] =
                     {
-                        val depGen = c.findHeaderDependencies( s, bd, ids, sids, sourceFile )
+                        val depGen = c.findHeaderDependencies( s, bd, ids, sids, sourceFile, cfs )
                         
                         depGen.runIfNotCached( scd, Seq(sourceFile) )
                         
@@ -291,24 +299,24 @@ abstract class NativeBuild extends Build
                 
                 watchSources        <++= (sourceFilesWithDeps) map { sfd => sfd.toList.flatMap { case (sf, deps) => (sf +: deps.toList) } },
                 
-                objectFiles        <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFilesWithDeps, streams) flatMap {
+                objectFiles        <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFilesWithDeps, cppCompileFlags, streams) flatMap {
                     
-                    case (c, bd, scd, ids, sids, sfwdeps, s) =>
+                    case (c, bd, scd, ids, sids, sfwdeps, cfs, s) =>
                     
                     taskMapReduce( sfwdeps )
                     { case (sourceFile, dependencies) =>
                     
-                        val blf = c.compileToObjectFile( s, bd, ids, sids, sourceFile )
+                        val blf = c.compileToObjectFile( s, bd, ids, sids, sourceFile, cfs )
                         
                         Seq(blf.runIfNotCached( scd, dependencies ))
                     }( _ ++ _ )
                 },
                 
-                test                        <<= (streams) map { s => s.log.info( "No tests defined for this project" ) },
-                exportedLibs                <<= (streams) map { s => s.log.info( "No libraries exported by this project" ); Seq() },
-                exportedLibDirectories      <<= (streams) map { s => s.log.info( "No library paths exported by this project" ); Seq() },
-                exportedIncludeDirectories  <<= (streams) map { s => s.log.info( "No include directories exported by this project" ); Seq() },
-                nativeExe                   <<= (streams) map { s => s.log.info( "No executable built by this project" ); file("") }
+                test                        <<= (streams, name) map { case (s, n) => s.log.info( "No tests defined for this project (%s)".format(n) ) },
+                exportedLibs                <<= (streams, name) map { case (s, n) => s.log.info( "No libraries exported by this project (%s)".format(n) ); Seq() },
+                exportedLibDirectories      <<= (streams, name) map { case (s, n) => s.log.info( "No library paths exported by this project (%s)".format(n) ); Seq() },
+                exportedIncludeDirectories  <<= (streams, name) map { case (s, n) => s.log.info( "No include directories exported by this project (%s)".format(n) ); Seq() },
+                nativeExe                   <<= (streams, name) map { case (s, n) => s.log.info( "No executable built by this project (%s)".format(n) ); file("") }
             )
             
             val p = Project( id=_name, base=file("./"), settings=defaultSettings ++ _settings )
@@ -433,7 +441,7 @@ class NativeDefaultBuild extends NativeBuild
     case object LinuxPC     extends TargetPlatform
     case object BeagleBone  extends TargetPlatform
     
-    class BuildType( debugOptLevel : DebugOptLevel, compiler : Compiler, targetPlatform : TargetPlatform ) extends BuildTypeTrait
+    case class BuildType( debugOptLevel : DebugOptLevel, compiler : Compiler, targetPlatform : TargetPlatform ) extends BuildTypeTrait
     {
         def name        = debugOptLevel.toString + "_" + compiler.toString + "_" + targetPlatform.toString
         def pathDirs    = Seq( debugOptLevel.toString, compiler.toString, targetPlatform.toString )

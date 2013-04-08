@@ -11,3 +11,11 @@ std::vector<std::string> catVec( const std::vector<std::string>& bippy )
     
     return res;
 }
+
+int conditionalFlagCheck() { return THING; }
+
+std::string compiler() { return COMPILER; }
+
+std::string targetPlatform() { return TARGET_PLATFORM; }
+
+

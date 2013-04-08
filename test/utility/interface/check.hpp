@@ -1,21 +1,26 @@
 #pragma once
 
-#include <iostream>
+#include <sstream>
+#include <stdexcept>
 
 template<typename A, typename B>
 inline void check_equal( const char* FILE, int line, const A& lhs, const B& rhs )
 {
     if ( lhs != rhs )
-    { 
-        std::cerr << "Test check failure: (" << FILE << ", " << line << "): " << lhs << " != " << rhs << std::endl;
+    {
+        std::stringstream ss;
+        ss << "Test check failure: (" << FILE << ", " << line << "): " << lhs << " != " << rhs << std::endl;
+        throw std::runtime_error( ss.str() );
     }
 }
 
 inline void check( const char* FILE, int line, bool predicate, const char* predicateString )
 {
     if ( !predicate )
-    { 
-        std::cerr << "Test check failure: (" << FILE << ", " << line << "): " << predicateString << std::endl;
+    {
+        std::stringstream ss;
+        ss << "Test check failure: (" << FILE << ", " << line << "): " << predicateString << std::endl;
+        throw std::runtime_error( ss.str() );
     }
 }
 
