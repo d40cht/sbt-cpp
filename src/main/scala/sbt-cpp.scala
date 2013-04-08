@@ -107,24 +107,30 @@ case class GccCompiler(
 
 abstract class NativeBuild extends Build
 {
-    private val projectsBuffer = mutable.ArrayBuffer[Project]()
+    type SubProjectBuilders = Seq[Project => Project]
     
-    private def projectRefs = projectsBuffer.map( p => LocalProject(p.id) )
+    private lazy val allProjectVals : Seq[Project] = ReflectUtilities.allVals[Project](this).values.toSeq
+    private lazy val nativeProjectVals : Seq[NativeProject] = ReflectUtilities.allVals[NativeProject](this).values.toSeq
     
-    override def projects: Seq[Project] = NativeProject("all", file("."), Seq()).aggregate( projectRefs : _* ) +: projectsBuffer
-    def registerProject( p : Project ) =
+    override lazy val projects : Seq[Project] =
     {
-        projectsBuffer.append(p)
+        // Extract and register any subprojects within the native projects (Generally used for test purposes)
+        val nativeSubProjects : Seq[Project] = nativeProjectVals.flatMap( np => np.subProjectBuilders.map( _(np.p) ) )
+        
+        val allProjects = allProjectVals ++ nativeProjectVals.map( _.p ) ++ nativeSubProjects
+        val allProjectRefs = allProjects.map( p => LocalProject(p.id) )
+        
+        val aggregateProject = NativeProject("all", file("."), Seq()).aggregate( allProjectRefs : _* )
+        
+        aggregateProject +: allProjects
     }
-    
-    //implicit val nbuild = this
 
+    type BuildType <: BuildTypeTrait
     def configurations : Set[Environment]
+    
 
     type Sett = Project.Setting[_]
-    //val compilerExe = SettingKey[File]("compiler", "Path to compiler executable")
-    //val archiveExe = SettingKey[File]("archive", "Path to archive executable")
-    
+
     val compiler = TaskKey[Compiler]("native-compiler")
     val buildEnvironment = TaskKey[Option[Environment]]("build-environment")
     val rootBuildDirectory = TaskKey[File]("root-build-dir", "Build root directory (for the config, not the project)")
@@ -143,6 +149,7 @@ abstract class NativeBuild extends Build
     val nativeRun = TaskKey[Unit]("native-run", "Perform a native run of this project" )
     val testProject = TaskKey[Project]("test-project", "The test sub-project for this project")
     val test = TaskKey[Unit]("test", "Run the test associated with this project" )
+    val cleanAll = TaskKey[Unit]("clean-all", "Clean the entire build directory" )
     
     val exportedLibs = TaskKey[Seq[File]]("exported-libs", "All libraries exported by this project" )
     val exportedLibDirectories = TaskKey[Seq[File]]("exported-lib-directories", "All library directories exported by this project" )
@@ -165,9 +172,7 @@ abstract class NativeBuild extends Build
         state.copy( attributes=updatedAttributes )
     }
     
-    type SubProjectBuilders = Seq[Project => Project]
-    
-    class NativeProject( val p : Project, buildSubProjects : SubProjectBuilders )
+    class NativeProject( val p : Project, val subProjectBuilders : SubProjectBuilders )
     {
         def nativeDependsOn( others : Project* ) : NativeProject =
         {
@@ -179,25 +184,16 @@ abstract class NativeBuild extends Build
                     compile             <<=  compile.dependsOn(exportedLibs in other) )
             }
             
-            new NativeProject( newP, buildSubProjects )
-        }
-        def register() : Project = 
-        {
-            registerProject(p)
-            buildSubProjects.map( f => f(p) ).foreach( registerProject )
-            
-            p
+            new NativeProject( newP, subProjectBuilders )
         }
     }
     
     implicit def toProject( rnp : NativeProject ) = rnp.p
     implicit def toProjectRef( rnp : NativeProject ) = LocalProject(rnp.p.id)
-    
-    //implicit def toRichNativeProject( p : Project ) = new RichNativeProject(p)
 
     object NativeProject
     {
-        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], buildSubProjects : SubProjectBuilders = Seq() ) =
+        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], subProjectBuilders : SubProjectBuilders = Seq() ) =
         {
             val defaultSettings = Seq(
                 name                := _name,
@@ -229,6 +225,9 @@ abstract class NativeBuild extends Build
                 },
                 
                 clean               <<= (rootBuildDirectory) map { rbd => IO.delete(rbd) },
+                
+                
+                cleanAll            <<= (target) map { td => IO.delete(td) },
                 
                 compiler            <<= (buildEnvironment) map { _.get.compiler },
                 
@@ -301,13 +300,13 @@ abstract class NativeBuild extends Build
             
             val p = Project( id=_name, base=file("./"), settings=defaultSettings ++ _settings )
             
-            new NativeProject(p, buildSubProjects)
+            new NativeProject(p, subProjectBuilders)
         }
     }
 
     object StaticLibrary
     {
-        private def buildLib( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]], buildSubProjects : SubProjectBuilders = Seq() ) =
+        private def buildLib( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]], subProjectBuilders : SubProjectBuilders = Seq() ) =
         {
             val defaultSettings = Seq(
                 exportedLibs <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, streams) map
@@ -323,14 +322,14 @@ abstract class NativeBuild extends Build
                 
                 
             )
-            NativeProject( _name, _projectDirectory, defaultSettings ++ settings, buildSubProjects )
+            NativeProject( _name, _projectDirectory, defaultSettings ++ settings, subProjectBuilders )
         }
         
-        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]] ) =
+        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], ignoreTestDir : Boolean = true ) =
         {
 
             val testDir = (_projectDirectory / "test")
-            val subProjectBuilders : SubProjectBuilders = if ( testDir.exists )
+            val subProjectBuilders : SubProjectBuilders = if ( !ignoreTestDir && testDir.exists )
             {
                 val testName = _name + "_test"
                 
@@ -403,8 +402,34 @@ abstract class NativeBuild extends Build
             NativeProject( _name, _projectDirectory, defaultSettings ++ settings )
         }
     }
+}
+
+class NativeDefaultBuild extends NativeBuild
+{
+    sealed trait DebugOptLevel
+    case object Release extends DebugOptLevel
+    case object Debug   extends DebugOptLevel
     
+    sealed trait Compiler    
+    case object Gcc     extends Compiler
+    case object Clang   extends Compiler
     
+    sealed trait TargetPlatform
+    case object LinuxPC     extends TargetPlatform
+    case object BeagleBone  extends TargetPlatform
+    
+    class BuildType( debugOptLevel : DebugOptLevel, compiler : Compiler, targetPlatform : TargetPlatform ) extends BuildTypeTrait
+    {
+        def name        = debugOptLevel.toString + "_" + compiler.toString + "_" + targetPlatform.toString
+        def pathDirs    = Seq( debugOptLevel.toString, compiler.toString, targetPlatform.toString )
+    }
+    
+    lazy val baseGcc = new GccCompiler( file("/usr/bin/g++-4.7"), file("/usr/bin/ar"), file("/usr/bin/g++-4.7") )
+    
+    override lazy val configurations = Set[Environment](
+        new Environment( new BuildType( Release, Gcc, LinuxPC ), baseGcc.copy( compileFlags="-std=c++11 -O2 -Wall -Wextra -DLINUX -DRELEASE" ) ),
+        new Environment( new BuildType( Debug, Gcc, LinuxPC ), baseGcc.copy( compileFlags="-std=c++11 -g -Wall -Wextra -DLINUX -DDEBUG" ) )
+    )
 }
 
 
