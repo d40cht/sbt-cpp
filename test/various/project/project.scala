@@ -1,14 +1,13 @@
 import sbt._
 import Keys._
-import org.seacourt.build._
 
+import org.seacourt.build._
+import org.seacourt.build.NativeBuild._
+import org.seacourt.build.NativeDefaultBuild._
 
 
 object TestBuild extends NativeDefaultBuild
 {
-    import NativeBuild._
-    import NativeDefaultBuild._
-    
     lazy val checkLib = ProjectRef( file("../utility"), "check" )
     
     lazy val library1 = StaticLibrary( "library1", file( "./library1" ), Seq() )

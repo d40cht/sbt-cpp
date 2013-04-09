@@ -176,8 +176,10 @@ abstract class NativeBuild extends Build
     val nativeExe = TaskKey[File]("native-exe", "Executable built by this project (if appropriate)" )
     val nativeRun = TaskKey[Unit]("native-run", "Perform a native run of this project" )
     val testProject = TaskKey[Project]("test-project", "The test sub-project for this project")
-    val test = TaskKey[Unit]("test", "Run the test associated with this project" )
-    val cleanAll = TaskKey[Unit]("clean-all", "Clean the entire build directory" )
+    val nativeTest = TaskKey[(File, File)]("native-test-run", "Run the native test, returning the files with stdout and stderr respectively")
+    val test = TaskKey[Unit]("test", "Run the test associated with this project")
+    val testEnvironmentVariables = TaskKey[Seq[(String, String)]]("test-env-vars", "Environment variables to be set for test runs")
+    val cleanAll = TaskKey[Unit]("clean-all", "Clean the entire build directory")
     val cppCompileFlags = TaskKey[Seq[String]]("cpp-compile-flags", "C++ compile flags")
     
 
@@ -209,6 +211,19 @@ abstract class NativeBuild extends Build
                     includeDirectories  <++= (exportedIncludeDirectories in other),
                     objectFiles         <++= (exportedLibs in other),
                     compile             <<=  compile.dependsOn(exportedLibs in other) )
+            }
+            
+            new NativeProject( newP, subProjectBuilders )
+        }
+        
+        def nativeSystemDependsOn( others : ProjectReference* ) : NativeProject =
+        {
+            val newP = others.foldLeft(p)
+            { case (np, other) =>
+                np.dependsOn( other ).settings(
+                    systemIncludeDirectories    <++= (exportedIncludeDirectories in other),
+                    objectFiles                 <++= (exportedLibs in other),
+                    compile                     <<=  compile.dependsOn(exportedLibs in other) )
             }
             
             new NativeProject( newP, subProjectBuilders )
@@ -317,10 +332,11 @@ abstract class NativeBuild extends Build
                     //sfs.par.map( sf => (sf, findDependencies(sf) ) ).seq
                 },
                 
+                testEnvironmentVariables    := Seq(),
                 
                 watchSources        <++= (sourceFilesWithDeps) map { sfd => sfd.toList.flatMap { case (sf, deps) => (sf +: deps.toList) } },
                 
-                objectFiles        <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFilesWithDeps, cppCompileFlags, streams) flatMap {
+                objectFiles         <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFilesWithDeps, cppCompileFlags, streams) flatMap {
                     
                     case (c, bd, scd, ids, sids, sfwdeps, cfs, s) =>
                     
@@ -380,8 +396,9 @@ abstract class NativeBuild extends Build
                 {
                     NativeTest( testName, testDir, Seq
                     (
-                        includeDirectories  <++= (includeDirectories in mainLibrary),
-                        objectFiles         <++= /*(exportedLibs in mainLibrary) ++*/ (objectFiles in mainLibrary)
+                        systemIncludeDirectories    <++= (systemIncludeDirectories in mainLibrary),
+                        includeDirectories          <++= (includeDirectories in mainLibrary),
+                        objectFiles                 <++= /*(exportedLibs in mainLibrary) ++*/ (objectFiles in mainLibrary)
                     ) ++ _settings )
                 }
                 
@@ -420,12 +437,41 @@ abstract class NativeBuild extends Build
                     
                     blf.runIfNotCached( scd, ofs )
                 },
-                compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
-                test <<= nativeExe map { ncExe =>
-                    val res = ncExe.toString !
+                (compile in Test) <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
+                nativeTest <<= (nativeExe, testEnvironmentVariables, streams) map
+                { case (ncExe, tenvs, s) =>
                 
-                    if ( res != 0 ) sys.error( "Non-zero exit code: " + res.toString )
-                }
+                    def pipeProcessOutput( pb : ProcessBuilder, stdoutFile : File, stderrFile : File )
+                    {
+                        var stderr = ""
+                        var stdout = ""
+                        class ProcessOutputToFile extends ProcessLogger
+                        {
+                            override def buffer[T]( f : => T ) = f
+                            override def error( s : => String ) = stderr += s
+                            override def info( s : => String ) = stdout += s
+                        }
+                        
+                        val res = pb ! new ProcessOutputToFile()
+                        
+                        IO.write( stderrFile, stderr )
+                        IO.write( stdoutFile, stdout )
+                        
+                        if ( res != 0 )
+                        {
+                            s.log.info( stdout )
+                            sys.error( "Non-zero exit code: " + res.toString )
+                        }
+                    }
+                    
+                    val pb = Process( ncExe.toString :: Nil, _projectDirectory, tenvs : _* )
+                    val stdoutFile = file( ncExe + ".stdout" )
+                    val stderrFile = file( ncExe + ".stderr" )
+                    pipeProcessOutput( pb, stdoutFile, stderrFile )
+                    
+                    (stdoutFile, stderrFile)
+                },
+                test <<= nativeTest.map { nt => Unit }
             )
             NativeProject( _name, _projectDirectory, defaultSettings ++ settings )
         }
@@ -449,7 +495,7 @@ abstract class NativeBuild extends Build
                     (argTask, nativeExe, streams) map
                     { case (args, nbExe, s) =>
                     
-                        val res = (nbExe.toString + " " + args.mkString(" ")) !
+                        val res = ( nbExe.toString + " " + args.mkString(" ") ) !
                     
                         if ( res != 0 ) sys.error( "Non-zero exit code: " + res.toString )
                     }
@@ -477,8 +523,7 @@ object NativeDefaultBuild
 
 class NativeDefaultBuild extends NativeBuild
 {
-    import NativeBuild._
-    import NativeDefaultBuild._
+    import NativeDefaultBuild._ 
     
     case class BuildType( debugOptLevel : DebugOptLevel, compiler : NativeCompiler, targetPlatform : TargetPlatform ) extends BuildTypeTrait
     {
