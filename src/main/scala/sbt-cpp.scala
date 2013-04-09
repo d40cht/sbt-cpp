@@ -36,6 +36,7 @@ trait Compiler
     def findHeaderDependencies( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) : FunctionWithResultPath
     def compileToObjectFile( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) : FunctionWithResultPath
     def buildStaticLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Seq[File] ) : FunctionWithResultPath
+    def buildSharedLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Seq[File] ) : FunctionWithResultPath
     def buildExecutable( s : TaskStreams[_], buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) : FunctionWithResultPath
 }
 
@@ -79,7 +80,7 @@ case class GccCompiler(
         val includePathArg = includePaths.map( ip => "-I " + ip ).mkString(" ")
         val systemIncludePathArg = systemIncludePaths.map( ip => "-isystem " + ip ).mkString(" ")
         val additionalFlags = compilerFlags.mkString(" ")
-        val buildCmd = "%s %s %s %s %s -c -o %s %s".format( compilerPath, compileFlags, additionalFlags, includePathArg, systemIncludePathArg, outputFile, sourceFile )
+        val buildCmd = "%s -fPIC %s %s %s %s -c -o %s %s".format( compilerPath, compileFlags, additionalFlags, includePathArg, systemIncludePathArg, outputFile, sourceFile )
                        
         s.log.info( "Executing: " + buildCmd )
         buildCmd !!
@@ -94,6 +95,15 @@ case class GccCompiler(
             arCmd !!
         }
         
+    def buildSharedLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Seq[File] ) =
+        FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
+        { outputFile =>
+        
+            val cmd = "%s -shared -o %s %s".format( compilerPath, outputFile, objectFiles.mkString(" ") )
+            s.log.info( "Executing: " + cmd )
+            cmd !!
+        }
+        
     def buildExecutable( s : TaskStreams[_], buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) =
         FunctionWithResultPath( buildDirectory / exeName )
         { outputFile =>
@@ -106,9 +116,18 @@ case class GccCompiler(
         }
 }
 
+object NativeBuild
+{    
+    val exportedLibs = TaskKey[Seq[File]]("exported-libs", "All libraries exported by this project" )
+    val exportedLibDirectories = TaskKey[Seq[File]]("exported-lib-directories", "All library directories exported by this project" )
+    val exportedIncludeDirectories = TaskKey[Seq[File]]("exported-include-directories", "All include directories exported by this project" )
+}
+
 
 abstract class NativeBuild extends Build
 {
+    import NativeBuild._
+    
     type SubProjectBuilders = Seq[Project => Project]
     
     private lazy val allProjectVals : Seq[Project] = ReflectUtilities.allVals[Project](this).values.toSeq
@@ -139,9 +158,6 @@ abstract class NativeBuild extends Build
     
     def configurations : Set[Environment]
     
-
-    type Sett = Project.Setting[_]
-
     val compiler = TaskKey[Compiler]("native-compiler")
     val buildEnvironment = TaskKey[Environment]("build-environment")
     val rootBuildDirectory = TaskKey[File]("root-build-dir", "Build root directory (for the config, not the project)")
@@ -164,11 +180,9 @@ abstract class NativeBuild extends Build
     val cleanAll = TaskKey[Unit]("clean-all", "Clean the entire build directory" )
     val cppCompileFlags = TaskKey[Seq[String]]("cpp-compile-flags", "C++ compile flags")
     
-    val exportedLibs = TaskKey[Seq[File]]("exported-libs", "All libraries exported by this project" )
-    val exportedLibDirectories = TaskKey[Seq[File]]("exported-lib-directories", "All library directories exported by this project" )
-    val exportedIncludeDirectories = TaskKey[Seq[File]]("exported-include-directories", "All include directories exported by this project" )
 
-    
+    type Sett = Project.Setting[_]
+
     val envKey = AttributeKey[Environment]("envKey")
     
     val buildOptsParser = Space ~> configurations.map( x => token(x.conf.name) ).reduce(_ | _)
@@ -204,8 +218,14 @@ abstract class NativeBuild extends Build
     implicit def toProject( rnp : NativeProject ) = rnp.p
     implicit def toProjectRef( rnp : NativeProject ) : ProjectReference = LocalProject(rnp.p.id)
     
+    
     object NativeProject
     {
+        // A selection of useful default settings from the standard sbt config
+        lazy val relevantSbtDefaultSettings = Seq[Sett](
+            watchTransitiveSources  <<= Defaults.watchTransitiveSourcesTask,                
+            watch                   <<= Defaults.watchSetting
+        )
     
         private def taskMapReduce[T, S]( inputs : Seq[T] )( mapFn : T => S )( reduceFn : (S, S) => S ) : Task[S] =
         {
@@ -218,12 +238,12 @@ abstract class NativeBuild extends Build
         
         def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], subProjectBuilders : SubProjectBuilders = Seq() ) =
         {
-            val defaultSettings = Seq(
+            val defaultSettings = relevantSbtDefaultSettings ++ Seq(
                 name                := _name,
                 
                 projectDirectory    <<= baseDirectory map { bd => (bd / _projectDirectory.toString) },
             
-                commands            += setBuildConfigCommand,
+                commands            ++= (BasicCommands.allBasicCommands :+ setBuildConfigCommand),
                 
                 buildEnvironment    <<= state map
                 { s =>
@@ -297,6 +317,7 @@ abstract class NativeBuild extends Build
                     //sfs.par.map( sf => (sf, findDependencies(sf) ) ).seq
                 },
                 
+                
                 watchSources        <++= (sourceFilesWithDeps) map { sfd => sfd.toList.flatMap { case (sf, deps) => (sf +: deps.toList) } },
                 
                 objectFiles        <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFilesWithDeps, cppCompileFlags, streams) flatMap {
@@ -325,15 +346,16 @@ abstract class NativeBuild extends Build
         }
     }
 
-    object StaticLibrary
+    object Library
     {
-        private def buildLib( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]], subProjectBuilders : SubProjectBuilders = Seq() ) =
+        private def buildLib( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]], isShared : Boolean, subProjectBuilders : SubProjectBuilders = Seq() ) =
         {
             val defaultSettings = Seq(
                 exportedLibs <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, streams) map
                 { case (c, projName, bd, scd, ofs, s) =>
                 
-                    val blf = c.buildStaticLibrary( s, bd, projName, ofs )
+                    val blf = if ( isShared ) c.buildSharedLibrary( s, bd, projName, ofs )
+                    else c.buildStaticLibrary( s, bd, projName, ofs )
                     
                     Seq( blf.runIfNotCached( scd, ofs ) )
                 },
@@ -346,9 +368,8 @@ abstract class NativeBuild extends Build
             NativeProject( _name, _projectDirectory, defaultSettings ++ settings, subProjectBuilders )
         }
         
-        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], ignoreTestDir : Boolean = false ) =
+        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], isShared : Boolean, ignoreTestDir : Boolean = false ) =
         {
-
             val testDir = (_projectDirectory / "test")
             
             val subProjectBuilders : SubProjectBuilders = if ( !ignoreTestDir && testDir.exists )
@@ -368,10 +389,22 @@ abstract class NativeBuild extends Build
             }
             else Seq()
             
-            val mainLibrary = buildLib( _name, _projectDirectory, _settings, subProjectBuilders )
+            val mainLibrary = buildLib( _name, _projectDirectory, _settings, isShared, subProjectBuilders )
             
             mainLibrary
         }
+    }
+    
+    object StaticLibrary
+    {
+        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], ignoreTestDir : Boolean = false ) =
+            Library(_name, _projectDirectory, _settings, false, ignoreTestDir )
+    }
+    
+    object SharedLibrary
+    {
+        def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], ignoreTestDir : Boolean = false ) =
+            Library(_name, _projectDirectory, _settings, true, ignoreTestDir )
     }
     
     
@@ -427,21 +460,27 @@ abstract class NativeBuild extends Build
     }
 }
 
-class NativeDefaultBuild extends NativeBuild
+object NativeDefaultBuild
 {
     sealed trait DebugOptLevel
     case object Release extends DebugOptLevel
     case object Debug   extends DebugOptLevel
     
-    sealed trait Compiler    
-    case object Gcc     extends Compiler
-    case object Clang   extends Compiler
+    sealed trait NativeCompiler    
+    case object Gcc     extends NativeCompiler
+    case object Clang   extends NativeCompiler
     
     sealed trait TargetPlatform
     case object LinuxPC     extends TargetPlatform
     case object BeagleBone  extends TargetPlatform
+}
+
+class NativeDefaultBuild extends NativeBuild
+{
+    import NativeBuild._
+    import NativeDefaultBuild._
     
-    case class BuildType( debugOptLevel : DebugOptLevel, compiler : Compiler, targetPlatform : TargetPlatform ) extends BuildTypeTrait
+    case class BuildType( debugOptLevel : DebugOptLevel, compiler : NativeCompiler, targetPlatform : TargetPlatform ) extends BuildTypeTrait
     {
         def name        = debugOptLevel.toString + "_" + compiler.toString + "_" + targetPlatform.toString
         def pathDirs    = Seq( debugOptLevel.toString, compiler.toString, targetPlatform.toString )

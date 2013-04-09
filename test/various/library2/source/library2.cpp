@@ -9,7 +9,7 @@ std::vector<std::string> catVec( const std::vector<std::string>& bippy )
         res.push_back( stringAdd( s, s ) );
     }
     
-    return res;
+    return res; 
 }
 
 int conditionalFlagCheck() { return THING; }

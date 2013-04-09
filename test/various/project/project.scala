@@ -2,14 +2,19 @@ import sbt._
 import Keys._
 import org.seacourt.build._
 
+
+
 object TestBuild extends NativeDefaultBuild
 {
+    import NativeBuild._
+    import NativeDefaultBuild._
+    
     lazy val checkLib = ProjectRef( file("../utility"), "check" )
     
     lazy val library1 = StaticLibrary( "library1", file( "./library1" ), Seq() )
         .nativeDependsOn( checkLib )
         
-    lazy val library2 = StaticLibrary( "library2", file( "./library2" ),
+    lazy val library2 = SharedLibrary( "library2", file( "./library2" ),
         Seq(
             cppCompileFlags <++= (buildEnvironment) map
             { be =>
@@ -46,3 +51,27 @@ object TestBuild extends NativeDefaultBuild
     //lazy val 
 
 }
+
+object ScalaLib extends NativeDefaultBuild
+{
+    import NativeBuild.exportedLibs
+    
+    lazy val standardSettings = Defaults.defaultSettings
+    
+     lazy val scalaJNA = Project(
+        id="scalaJNA",
+        base=file("scalajna"),
+        settings=standardSettings ++ Seq[Sett](
+            scalaVersion        := "2.9.2",
+            
+            libraryDependencies += "org.scalatest" %% "scalatest" % "1.6.1",
+            
+            (test in Test)      <<= (test in Test).dependsOn( exportedLibs in TestBuild.library2 ),
+            
+            // Needed to set the build environment
+            commands            += setBuildConfigCommand
+        )
+    )
+    .dependsOn( TestBuild.library2 )
+}
+
