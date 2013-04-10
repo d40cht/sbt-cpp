@@ -55,6 +55,11 @@ case class GccCompiler(
     val compileFlags : String = "",
     val linkFlags : String = "" ) extends Compiler
 {
+    private def reportFileGenerated( s : TaskStreams[_], genFile : File )
+    {
+        s.log.success( genFile.toString )
+    }
+    
     def findHeaderDependencies( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
     
@@ -62,7 +67,8 @@ case class GccCompiler(
         val systemIncludePathArg = systemIncludePaths.map( ip => "-isystem " + ip ).mkString(" ")
         val additionalFlags = compilerFlags.mkString(" ")
         val depCmd = "%s %s %s -M %s %s %s".format( compilerPath, compileFlags, additionalFlags, includePathArg, systemIncludePathArg, sourceFile )
-        s.log.info( "Executing: " + depCmd )
+        
+        s.log.debug( "Executing: " + depCmd )
         val depResult = stringToProcess( depCmd ).lines
         
         // Strip off any trailing backslash characters from the output
@@ -72,6 +78,8 @@ case class GccCompiler(
         val allFiles = depFileLines.flatMap( _.split(" ").drop(1) ).map( x => new File(x.trim) )
         
         IO.write( depFile, allFiles.mkString("\n") )
+        
+        reportFileGenerated( s, depFile )
     }
     
     def compileToObjectFile( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
@@ -81,9 +89,11 @@ case class GccCompiler(
         val systemIncludePathArg = systemIncludePaths.map( ip => "-isystem " + ip ).mkString(" ")
         val additionalFlags = compilerFlags.mkString(" ")
         val buildCmd = "%s -fPIC %s %s %s %s -c -o %s %s".format( compilerPath, compileFlags, additionalFlags, includePathArg, systemIncludePathArg, outputFile, sourceFile )
-                       
-        s.log.info( "Executing: " + buildCmd )
+
+        s.log.debug( "Executing: " + buildCmd )
         buildCmd !!
+        
+        reportFileGenerated( s, outputFile )
     }
     
     def buildStaticLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Seq[File] ) =
@@ -91,8 +101,10 @@ case class GccCompiler(
         { outputFile =>
         
             val arCmd = "%s -c -r %s %s".format( archiverPath, outputFile, objectFiles.mkString(" ") )
-            s.log.info( "Executing: " + arCmd )
+            s.log.debug( "Executing: " + arCmd )
             arCmd !!
+            
+            reportFileGenerated( s, outputFile )
         }
         
     def buildSharedLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Seq[File] ) =
@@ -100,8 +112,10 @@ case class GccCompiler(
         { outputFile =>
         
             val cmd = "%s -shared -o %s %s".format( compilerPath, outputFile, objectFiles.mkString(" ") )
-            s.log.info( "Executing: " + cmd )
+            s.log.debug( "Executing: " + cmd )
             cmd !!
+            
+            reportFileGenerated( s, outputFile )
         }
         
     def buildExecutable( s : TaskStreams[_], buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) =
@@ -111,8 +125,10 @@ case class GccCompiler(
             val linkPathArg = linkPaths.map( lp => "-L " + lp ).mkString(" ")
             val libArgs = linkLibraries.map( ll => "-l" + ll ).mkString(" ")
             val linkCmd = "%s %s -o %s %s %s %s".format( linkerPath, linkFlags, outputFile, inputFiles.mkString(" "), linkPathArg, libArgs )
-            s.log.info( "Executing: " + linkCmd )
+            s.log.debug( "Executing: " + linkCmd )
             linkCmd !!
+            
+            reportFileGenerated( s, outputFile )
         }
 }
 
@@ -132,6 +148,8 @@ abstract class NativeBuild extends Build
     
     private lazy val allProjectVals : Seq[Project] = ReflectUtilities.allVals[Project](this).values.toSeq
     private lazy val nativeProjectVals : Seq[NativeProject] = ReflectUtilities.allVals[NativeProject](this).values.toSeq
+    
+    def nativeProjects = nativeProjectVals
     
     override lazy val projects : Seq[Project] =
     {
@@ -176,7 +194,7 @@ abstract class NativeBuild extends Build
     val nativeExe = TaskKey[File]("native-exe", "Executable built by this project (if appropriate)" )
     val nativeRun = TaskKey[Unit]("native-run", "Perform a native run of this project" )
     val testProject = TaskKey[Project]("test-project", "The test sub-project for this project")
-    val nativeTest = TaskKey[(File, File)]("native-test-run", "Run the native test, returning the files with stdout and stderr respectively")
+    val nativeTest = TaskKey[Option[(File, File)]]("native-test-run", "Run the native test, returning the files with stdout and stderr respectively")
     val test = TaskKey[Unit]("test", "Run the test associated with this project")
     val testEnvironmentVariables = TaskKey[Seq[(String, String)]]("test-env-vars", "Environment variables to be set for test runs")
     val cleanAll = TaskKey[Unit]("clean-all", "Clean the entire build directory")
@@ -188,6 +206,28 @@ abstract class NativeBuild extends Build
     val envKey = AttributeKey[Environment]("envKey")
     
     val buildOptsParser = Space ~> configurations.map( x => token(x.conf.name) ).reduce(_ | _)
+    
+    protected def pipeProcessOutput( pb : ProcessBuilder, stdoutFile : File, stderrFile : File )
+    {
+        var stderr = ""
+        var stdout = ""
+        class ProcessOutputToFile extends ProcessLogger
+        {
+            override def buffer[T]( f : => T ) = f
+            override def error( s : => String ) = stderr += s
+            override def info( s : => String ) = stdout += s
+        }
+        
+        val res = pb ! new ProcessOutputToFile()
+        
+        IO.write( stderrFile, stderr )
+        IO.write( stdoutFile, stdout )
+        
+        if ( res != 0 )
+        {
+            sys.error( "Non-zero exit code: " + res.toString )
+        }
+    }
     
     def setBuildConfigCommand = Command("build-environment")(_ => buildOptsParser)
     {
@@ -349,11 +389,12 @@ abstract class NativeBuild extends Build
                     }( _ ++ _ )
                 },
                 
-                test                        <<= (streams, name) map { case (s, n) => s.log.info( "No tests defined for this project (%s)".format(n) ) },
-                exportedLibs                <<= (streams, name) map { case (s, n) => s.log.info( "No libraries exported by this project (%s)".format(n) ); Seq() },
-                exportedLibDirectories      <<= (streams, name) map { case (s, n) => s.log.info( "No library paths exported by this project (%s)".format(n) ); Seq() },
-                exportedIncludeDirectories  <<= (streams, name) map { case (s, n) => s.log.info( "No include directories exported by this project (%s)".format(n) ); Seq() },
-                nativeExe                   <<= (streams, name) map { case (s, n) => s.log.info( "No executable built by this project (%s)".format(n) ); file("") }
+                nativeTest                  :=  None,
+                test                        :=  Unit,
+                exportedLibs                <<= (streams, name) map { case (s, n) => s.log.warn( "No libraries exported by this project (%s)".format(n) ); Seq() },
+                exportedLibDirectories      <<= (streams, name) map { case (s, n) => s.log.warn( "No library paths exported by this project (%s)".format(n) ); Seq() },
+                exportedIncludeDirectories  <<= (streams, name) map { case (s, n) => s.log.warn( "No include directories exported by this project (%s)".format(n) ); Seq() },
+                nativeExe                   <<= (streams, name) map { case (s, n) => s.log.warn( "No executable built by this project (%s)".format(n) ); file("") }
             )
             
             val p = Project( id=_name, base=file("./"), settings=defaultSettings ++ _settings )
@@ -438,38 +479,24 @@ abstract class NativeBuild extends Build
                     blf.runIfNotCached( scd, ofs )
                 },
                 (compile in Test) <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
-                nativeTest <<= (nativeExe, testEnvironmentVariables, streams) map
-                { case (ncExe, tenvs, s) =>
-                
-                    def pipeProcessOutput( pb : ProcessBuilder, stdoutFile : File, stderrFile : File )
-                    {
-                        var stderr = ""
-                        var stdout = ""
-                        class ProcessOutputToFile extends ProcessLogger
-                        {
-                            override def buffer[T]( f : => T ) = f
-                            override def error( s : => String ) = stderr += s
-                            override def info( s : => String ) = stdout += s
-                        }
-                        
-                        val res = pb ! new ProcessOutputToFile()
-                        
-                        IO.write( stderrFile, stderr )
-                        IO.write( stdoutFile, stdout )
-                        
-                        if ( res != 0 )
-                        {
-                            s.log.info( stdout )
-                            sys.error( "Non-zero exit code: " + res.toString )
-                        }
-                    }
-                    
-                    val pb = Process( ncExe.toString :: Nil, _projectDirectory, tenvs : _* )
+                nativeTest <<= (nativeExe, testEnvironmentVariables, stateCacheDirectory, streams) map
+                { case (ncExe, tenvs, scd, s) =>
+
                     val stdoutFile = file( ncExe + ".stdout" )
                     val stderrFile = file( ncExe + ".stderr" )
-                    pipeProcessOutput( pb, stdoutFile, stderrFile )
                     
-                    (stdoutFile, stderrFile)
+                    val tcf = FunctionWithResultPath( stderrFile )
+                    { _ =>
+                        s.log.info( "Running test: " + ncExe )
+                        
+                        val pb = Process( ncExe.toString :: Nil, _projectDirectory, tenvs : _* )
+                        
+                        pipeProcessOutput( pb, stdoutFile, stderrFile )
+                    }
+                    
+                    tcf.runIfNotCached( scd, Seq(ncExe) )
+                    
+                    Some( (stdoutFile, stderrFile) )
                 },
                 test <<= nativeTest.map { nt => Unit }
             )
