@@ -35,9 +35,9 @@ trait BuildTypeTrait
   */
 object NativeBuild
 {    
-    val exportedLibs = TaskKey[Seq[File]]("exported-libs", "All libraries exported by this project" )
-    val exportedLibDirectories = TaskKey[Seq[File]]("exported-lib-directories", "All library directories exported by this project" )
-    val exportedIncludeDirectories = TaskKey[Seq[File]]("exported-include-directories", "All include directories exported by this project" )
+    val exportedLibs = TaskKey[Seq[File]]("native-exported-libs", "All libraries exported by this project" )
+    val exportedLibDirectories = TaskKey[Seq[File]]("native-exported-lib-directories", "All library directories exported by this project" )
+    val exportedIncludeDirectories = TaskKey[Seq[File]]("native-exported-include-directories", "All include directories exported by this project" )
 }
 
 /**
@@ -83,29 +83,28 @@ abstract class NativeBuild extends Build
     def configurations : Set[Environment]
     
     val compiler = TaskKey[Compiler]("native-compiler")
-    val buildEnvironment = TaskKey[Environment]("build-environment")
-    val rootBuildDirectory = TaskKey[File]("root-build-dir", "Build root directory (for the config, not the project)")
-    val projectBuildDirectory = TaskKey[File]("project-build-dir", "Build directory for this config and project")
-    val stateCacheDirectory = TaskKey[File]("state-cache-dir", "Build state cache directory")
-    val projectDirectory = TaskKey[File]("project-dir", "Project directory")
-    val sourceDirectories = TaskKey[Seq[File]]("source-dir", "Source directory")
-    val includeDirectories = TaskKey[Seq[File]]("include-dirs", "Include directories")
-    val systemIncludeDirectories = TaskKey[Seq[File]]("system-include-dirs", "System include directories")
-    val linkDirectories = TaskKey[Seq[File]]("link-dirs", "Link directories")
+    val buildEnvironment = TaskKey[Environment]("native-build-environment")
+    val rootBuildDirectory = TaskKey[File]("native-root-build-dir", "Build root directory (for the config, not the project)")
+    val projectBuildDirectory = TaskKey[File]("native-project-build-dir", "Build directory for this config and project")
+    val stateCacheDirectory = TaskKey[File]("native-state-cache-dir", "Build state cache directory")
+    val projectDirectory = TaskKey[File]("native-project-dir", "Project directory")
+    val sourceDirectories = TaskKey[Seq[File]]("native-source-dirs", "Source directories")
+    val includeDirectories = TaskKey[Seq[File]]("native-include-dirs", "Include directories")
+    val systemIncludeDirectories = TaskKey[Seq[File]]("native-system-include-dirs", "System include directories")
+    val linkDirectories = TaskKey[Seq[File]]("native-link-dirs", "Link directories")
     val nativeLibraries = TaskKey[Seq[String]]("native-libraries", "All native library dependencies for this project")
-    val sourceFiles = TaskKey[Seq[File]]("source-files", "All source files for this project")
+    val sourceFiles = TaskKey[Seq[File]]("native-source-files", "All source files for this project")
     val sourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("source-files-with-deps", "All source files for this project")
-    val objectFiles = TaskKey[Seq[File]]("object-files", "All object files for this project" )
-    val objectFiles2 = TaskKey[Seq[File]]("object-files", "All object files for this project" )
+    val objectFiles = TaskKey[Seq[File]]("native-object-files", "All object files for this project" )
     val nativeExe = TaskKey[File]("native-exe", "Executable built by this project (if appropriate)" )
     val nativeRun = TaskKey[Unit]("native-run", "Perform a native run of this project" )
-    val testProject = TaskKey[Project]("test-project", "The test sub-project for this project")
+    val testProject = TaskKey[Project]("native-test-project", "The test sub-project for this project")
     val nativeTest = TaskKey[Option[(File, File)]]("native-test-run", "Run the native test, returning the files with stdout and stderr respectively")
     val test = TaskKey[Unit]("test", "Run the test associated with this project")
-    val runEnvironmentVariables = TaskKey[Seq[(String, String)]]("run-env-vars", "Environment variables to be set for test runs")
-    val testEnvironmentVariables = TaskKey[Seq[(String, String)]]("test-env-vars", "Environment variables to be set for test runs")
-    val cleanAll = TaskKey[Unit]("clean-all", "Clean the entire build directory")
-    val cppCompileFlags = TaskKey[Seq[String]]("cpp-compile-flags", "C++ compile flags")
+    val runEnvironmentVariables = TaskKey[Seq[(String, String)]]("native-run-env-vars", "Environment variables to be set for test runs")
+    val testEnvironmentVariables = TaskKey[Seq[(String, String)]]("native-test-env-vars", "Environment variables to be set for test runs")
+    val cleanAll = TaskKey[Unit]("native-clean-all", "Clean the entire build directory")
+    val cppCompileFlags = TaskKey[Seq[String]]("native-cpp-compile-flags", "C++ compile flags")
     
 
     type Sett = Project.Setting[_]
