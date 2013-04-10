@@ -6,132 +6,33 @@ import complete.{Parser, RichParser}
 import complete.DefaultParsers._
 import scala.collection.{mutable, immutable}
 
-import sbt.std.{TaskStreams}
+//import sbt.std.{TaskStreams}
 
-class FunctionWithResultPath( val resultPath : File, val fn : () => File )
-{
-    def apply() = fn()
-    def runIfNotCached( stateCacheDir : File, inputDeps : Seq[File] ) =
-    {
-        val lazyBuild = FileFunction.cached( stateCacheDir / resultPath.toString , FilesInfo.lastModified, FilesInfo.exists ) 
-        { _ =>
-            Set( fn() )
-        }
-        lazyBuild(inputDeps.toSet)
-        
-        resultPath
-    }
-}
-
-object FunctionWithResultPath
-{
-    def apply( resultPath : File )( fn : File => Unit ) =
-    {
-        new FunctionWithResultPath( resultPath, () => { fn(resultPath); resultPath } )
-    }
-}
-
+/**
+  * The base trait from which all native compilers must be inherited in order
+  */
 trait Compiler
 {
-    def findHeaderDependencies( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) : FunctionWithResultPath
-    def compileToObjectFile( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) : FunctionWithResultPath
-    def buildStaticLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Seq[File] ) : FunctionWithResultPath
-    def buildSharedLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Seq[File] ) : FunctionWithResultPath
-    def buildExecutable( s : TaskStreams[_], buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) : FunctionWithResultPath
+    def findHeaderDependencies( s : TaskStreams, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) : FunctionWithResultPath
+    def compileToObjectFile( s : TaskStreams, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) : FunctionWithResultPath
+    def buildStaticLibrary( s : TaskStreams, buildDirectory : File, libName : String, objectFiles : Seq[File] ) : FunctionWithResultPath
+    def buildSharedLibrary( s : TaskStreams, buildDirectory : File, libName : String, objectFiles : Seq[File] ) : FunctionWithResultPath
+    def buildExecutable( s : TaskStreams, buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) : FunctionWithResultPath
 }
 
+/**
+  * Build configurations for a particular project must inherit from this trait.
+  * See the default in NativeDefaultBuild for more details
+  */
 trait BuildTypeTrait
 {
     def name        : String
     def pathDirs    : Seq[String]
 }
 
-
-
-case class GccCompiler(
-    val compilerPath : File,
-    val archiverPath : File,
-    val linkerPath : File,
-    val compileFlags : String = "",
-    val linkFlags : String = "" ) extends Compiler
-{
-    private def reportFileGenerated( s : TaskStreams[_], genFile : File )
-    {
-        s.log.success( genFile.toString )
-    }
-    
-    def findHeaderDependencies( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
-    { depFile =>
-    
-        val includePathArg = includePaths.map( ip => "-I " + ip ).mkString(" ")
-        val systemIncludePathArg = systemIncludePaths.map( ip => "-isystem " + ip ).mkString(" ")
-        val additionalFlags = compilerFlags.mkString(" ")
-        val depCmd = "%s %s %s -M %s %s %s".format( compilerPath, compileFlags, additionalFlags, includePathArg, systemIncludePathArg, sourceFile )
-        
-        s.log.debug( "Executing: " + depCmd )
-        val depResult = stringToProcess( depCmd ).lines
-        
-        // Strip off any trailing backslash characters from the output
-        val depFileLines = depResult.map( _.replace( "\\", "" ) )
-    
-        // Drop the first column and split on spaces to get all the files (potentially several per line )
-        val allFiles = depFileLines.flatMap( _.split(" ").drop(1) ).map( x => new File(x.trim) )
-        
-        IO.write( depFile, allFiles.mkString("\n") )
-        
-        reportFileGenerated( s, depFile )
-    }
-    
-    def compileToObjectFile( s : TaskStreams[_], buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
-    { outputFile =>
-    
-        val includePathArg = includePaths.map( ip => "-I " + ip ).mkString(" ")
-        val systemIncludePathArg = systemIncludePaths.map( ip => "-isystem " + ip ).mkString(" ")
-        val additionalFlags = compilerFlags.mkString(" ")
-        val buildCmd = "%s -fPIC %s %s %s %s -c -o %s %s".format( compilerPath, compileFlags, additionalFlags, includePathArg, systemIncludePathArg, outputFile, sourceFile )
-
-        s.log.debug( "Executing: " + buildCmd )
-        buildCmd !!
-        
-        reportFileGenerated( s, outputFile )
-    }
-    
-    def buildStaticLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Seq[File] ) =
-        FunctionWithResultPath( buildDirectory / ("lib" + libName + ".a") )
-        { outputFile =>
-        
-            val arCmd = "%s -c -r %s %s".format( archiverPath, outputFile, objectFiles.mkString(" ") )
-            s.log.debug( "Executing: " + arCmd )
-            arCmd !!
-            
-            reportFileGenerated( s, outputFile )
-        }
-        
-    def buildSharedLibrary( s : TaskStreams[_], buildDirectory : File, libName : String, objectFiles : Seq[File] ) =
-        FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
-        { outputFile =>
-        
-            val cmd = "%s -shared -o %s %s".format( compilerPath, outputFile, objectFiles.mkString(" ") )
-            s.log.debug( "Executing: " + cmd )
-            cmd !!
-            
-            reportFileGenerated( s, outputFile )
-        }
-        
-    def buildExecutable( s : TaskStreams[_], buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) =
-        FunctionWithResultPath( buildDirectory / exeName )
-        { outputFile =>
-        
-            val linkPathArg = linkPaths.map( lp => "-L " + lp ).mkString(" ")
-            val libArgs = linkLibraries.map( ll => "-l" + ll ).mkString(" ")
-            val linkCmd = "%s %s -o %s %s %s %s".format( linkerPath, linkFlags, outputFile, inputFiles.mkString(" "), linkPathArg, libArgs )
-            s.log.debug( "Executing: " + linkCmd )
-            linkCmd !!
-            
-            reportFileGenerated( s, outputFile )
-        }
-}
-
+/**
+  * Keys for a native build that should be visible from all types of sbt project (including scala)
+  */
 object NativeBuild
 {    
     val exportedLibs = TaskKey[Seq[File]]("exported-libs", "All libraries exported by this project" )
@@ -139,6 +40,11 @@ object NativeBuild
     val exportedIncludeDirectories = TaskKey[Seq[File]]("exported-include-directories", "All include directories exported by this project" )
 }
 
+/**
+  * The base mechanics, keys and build graph for a native build.
+  * The possible build configurations remain abstract via BuildType and
+  * the configurations Set. These need to be provided in a derived class.
+  */
 
 abstract class NativeBuild extends Build
 {
@@ -207,28 +113,6 @@ abstract class NativeBuild extends Build
     val envKey = AttributeKey[Environment]("envKey")
     
     val buildOptsParser = Space ~> configurations.map( x => token(x.conf.name) ).reduce(_ | _)
-    
-    protected def pipeProcessOutput( pb : ProcessBuilder, stdoutFile : File, stderrFile : File )
-    {
-        var stderr = ""
-        var stdout = ""
-        class ProcessOutputToFile extends ProcessLogger
-        {
-            override def buffer[T]( f : => T ) = f
-            override def error( s : => String ) = stderr += s
-            override def info( s : => String ) = stdout += s
-        }
-        
-        val res = pb ! new ProcessOutputToFile()
-        
-        IO.write( stderrFile, stderr )
-        IO.write( stdoutFile, stdout )
-        
-        if ( res != 0 )
-        {
-            sys.error( "Non-zero exit code: " + res.toString )
-        }
-    }
     
     def setBuildConfigCommand = Command("build-environment")(_ => buildOptsParser)
     {
@@ -494,7 +378,7 @@ abstract class NativeBuild extends Build
                         
                         val pb = Process( ncExe.toString :: Nil, _projectDirectory, tenvs : _* )
                         
-                        pipeProcessOutput( pb, stdoutFile, stderrFile )
+                        ProcessUtil.pipeProcessOutput( pb, stdoutFile, stderrFile )
                     }
                     
                     tcf.runIfNotCached( scd, Seq(ncExe) )
@@ -536,37 +420,5 @@ abstract class NativeBuild extends Build
     }
 }
 
-object NativeDefaultBuild
-{
-    sealed trait DebugOptLevel
-    case object Release extends DebugOptLevel
-    case object Debug   extends DebugOptLevel
-    
-    sealed trait NativeCompiler    
-    case object Gcc     extends NativeCompiler
-    case object Clang   extends NativeCompiler
-    
-    sealed trait TargetPlatform
-    case object LinuxPC     extends TargetPlatform
-    case object BeagleBone  extends TargetPlatform
-}
-
-class NativeDefaultBuild extends NativeBuild
-{
-    import NativeDefaultBuild._ 
-    
-    case class BuildType( debugOptLevel : DebugOptLevel, compiler : NativeCompiler, targetPlatform : TargetPlatform ) extends BuildTypeTrait
-    {
-        def name        = debugOptLevel.toString + "_" + compiler.toString + "_" + targetPlatform.toString
-        def pathDirs    = Seq( debugOptLevel.toString, compiler.toString, targetPlatform.toString )
-    }
-    
-    lazy val baseGcc = new GccCompiler( file("/usr/bin/g++-4.7"), file("/usr/bin/ar"), file("/usr/bin/g++-4.7") )
-    
-    override lazy val configurations = Set[Environment](
-        new Environment( new BuildType( Release, Gcc, LinuxPC ), baseGcc.copy( compileFlags="-std=c++11 -O2 -Wall -Wextra -DLINUX -DRELEASE" ) ),
-        new Environment( new BuildType( Debug, Gcc, LinuxPC ), baseGcc.copy( compileFlags="-std=c++11 -g -Wall -Wextra -DLINUX -DDEBUG" ) )
-    )
-}
 
 
