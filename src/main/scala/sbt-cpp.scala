@@ -196,6 +196,7 @@ abstract class NativeBuild extends Build
     val testProject = TaskKey[Project]("test-project", "The test sub-project for this project")
     val nativeTest = TaskKey[Option[(File, File)]]("native-test-run", "Run the native test, returning the files with stdout and stderr respectively")
     val test = TaskKey[Unit]("test", "Run the test associated with this project")
+    val runEnvironmentVariables = TaskKey[Seq[(String, String)]]("run-env-vars", "Environment variables to be set for test runs")
     val testEnvironmentVariables = TaskKey[Seq[(String, String)]]("test-env-vars", "Environment variables to be set for test runs")
     val cleanAll = TaskKey[Unit]("clean-all", "Clean the entire build directory")
     val cppCompileFlags = TaskKey[Seq[String]]("cpp-compile-flags", "C++ compile flags")
@@ -372,6 +373,8 @@ abstract class NativeBuild extends Build
                     //sfs.par.map( sf => (sf, findDependencies(sf) ) ).seq
                 },
                 
+                runEnvironmentVariables    := Seq(),
+                
                 testEnvironmentVariables    := Seq(),
                 
                 watchSources        <++= (sourceFilesWithDeps) map { sfd => sfd.toList.flatMap { case (sf, deps) => (sf +: deps.toList) } },
@@ -519,10 +522,10 @@ abstract class NativeBuild extends Build
                 compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
                 run <<= inputTask { (argTask: TaskKey[Seq[String]]) =>
                     
-                    (argTask, nativeExe, streams) map
-                    { case (args, nbExe, s) =>
+                    (argTask, runEnvironmentVariables, nativeExe, streams) map
+                    { case (args, renvs, ncExe, s) =>
                     
-                        val res = ( nbExe.toString + " " + args.mkString(" ") ) !
+                        val res = Process( ncExe.toString +: args, _projectDirectory, renvs : _* ) !
                     
                         if ( res != 0 ) sys.error( "Non-zero exit code: " + res.toString )
                     }
