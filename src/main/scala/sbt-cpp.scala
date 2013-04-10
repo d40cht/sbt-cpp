@@ -113,7 +113,7 @@ abstract class NativeBuild extends Build
     
     val buildOptsParser = Space ~> configurations.map( x => token(x.conf.name) ).reduce(_ | _)
     
-    def setBuildConfigCommand = Command("build-environment")(_ => buildOptsParser)
+    def setBuildConfigCommand = Command("native-build-environment")(_ => buildOptsParser)
     {
         (state, envName) =>
    
