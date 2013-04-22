@@ -56,11 +56,31 @@ class NativeDefaultBuild extends NativeBuild
         compilerExe         = file("clang++"),
         archiverExe         = file("ar"),
         linkerExe           = file("clang++") )
+
+
+    lazy val vsDefault = new VSCompiler(
+        toolPaths           = Seq(
+            file("c:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/Bin"),
+            file("c:/Program Files (x86)/Microsoft Visual Studio 10.0/VC/Bin"),
+            file("c:/Program Files (x86)/Microsoft Visual Studio 10.0/Common7/IDE")
+        ),
+        defaultIncludePaths = Seq(
+            file("c:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/Include"),
+            file("c:/Program Files (x86)/Microsoft Visual Studio 10.0/VC/include")
+        ),
+        defaultLibraryPaths = Seq(
+            file("c:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/Lib"),
+            file("c:/Program Files (x86)/Microsoft Visual Studio 10.0/VC/lib")
+        ),
+        compilerExe         = file("cl.exe"),
+        archiverExe         = file("link.exe"),
+        linkerExe           = file("link.exe") )
     
     override lazy val configurations = Set[Environment](
         new Environment( new BuildType( Release, Gcc, LinuxPC ), gccDefault.copy( compileDefaultFlags=Seq("-std=c++11", "-O2", "-Wall", "-Wextra", "-DLINUX", "-DRELEASE", "-DGCC") ) ),
         new Environment( new BuildType( Debug, Gcc, LinuxPC ), gccDefault.copy( compileDefaultFlags=Seq("-std=c++11", "-g", "-Wall", "-Wextra", "-DLINUX", "-DDEBUG", "-DGCC") ) ),
         new Environment( new BuildType( Release, Clang, LinuxPC ), clangDefault.copy( compileDefaultFlags=Seq("-std=c++11", "-O2", "-Wall", "-Wextra", "-DLINUX", "-DRELEASE", "-DCLANG") ) ),
-        new Environment( new BuildType( Debug, Clang, LinuxPC ), clangDefault.copy( compileDefaultFlags=Seq("-std=c++11", "-g", "-Wall", "-Wextra", "-DLINUX", "-DDEBUG", "-DCLANG") ) )
+        new Environment( new BuildType( Debug, Clang, LinuxPC ), clangDefault.copy( compileDefaultFlags=Seq("-std=c++11", "-g", "-Wall", "-Wextra", "-DLINUX", "-DDEBUG", "-DCLANG") ) ),
+	new Environment( new BuildType( Debug, VSCl, WindowsPC ), vsDefault.copy( compileDefaultFlags=Seq("-DWIN32", "-DDEBUG", "-DVS") ) )
     )
 }
