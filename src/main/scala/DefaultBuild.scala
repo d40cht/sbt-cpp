@@ -75,6 +75,8 @@ class NativeDefaultBuild extends NativeBuild
         compilerExe         = file("cl.exe"),
         archiverExe         = file("link.exe"),
         linkerExe           = file("link.exe") )
+
+    // How do we override these paths etc in user builds? I guess by deriving from default build and overriding configurations?
     
     override lazy val configurations = Set[Environment](
         new Environment( new BuildType( Release, Gcc, LinuxPC ), gccDefault.copy( compileDefaultFlags=Seq("-std=c++11", "-O2", "-Wall", "-Wextra", "-DLINUX", "-DRELEASE", "-DGCC") ) ),
