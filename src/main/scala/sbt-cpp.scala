@@ -113,7 +113,10 @@ abstract class NativeBuild extends Build
     
     val buildOptsParser = Space ~> configurations.map( x => token(x.conf.name) ).reduce(_ | _)
     
-    def setBuildConfigCommand = Command("native-build-environment")(_ => buildOptsParser)
+    
+    val nativeBuildConfigurationCommandName = "native-build-configuration"
+    
+    def setBuildConfigCommand = Command(nativeBuildConfigurationCommandName)(_ => buildOptsParser)
     {
         (state, envName) =>
    
@@ -187,7 +190,8 @@ abstract class NativeBuild extends Build
                 buildEnvironment    <<= state map
                 { s =>
                     val beo = s.attributes.get( envKey )
-                    if ( beo.isEmpty ) sys.error( "Please set a build configuration using the build-environment command" )
+                    
+                    if ( beo.isEmpty ) sys.error( "Please set a build configuration using the  command" % nativeBuildConfigurationCommandName )
                     
                     beo.get
                 },
