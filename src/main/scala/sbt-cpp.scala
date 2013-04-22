@@ -191,7 +191,7 @@ abstract class NativeBuild extends Build
                 { s =>
                     val beo = s.attributes.get( envKey )
                     
-                    if ( beo.isEmpty ) sys.error( "Please set a build configuration using the  command" % nativeBuildConfigurationCommandName )
+                    if ( beo.isEmpty ) sys.error( "Please set a build configuration using the %s command".format(nativeBuildConfigurationCommandName) )
                     
                     beo.get
                 },
