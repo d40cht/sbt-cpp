@@ -5,13 +5,15 @@ import Keys._
 
 import scala.collection.{mutable, immutable}
 
-
 case class GccCompiler(
-    val compilerPath : File,
-    val archiverPath : File,
-    val linkerPath : File,
-    val compileFlags : String = "",
-    val linkFlags : String = "" ) extends Compiler
+    override val toolPaths : Seq[File],
+    override val defaultLibraryPaths : Seq[File],
+    override val defaultIncludePaths : Seq[File],
+    val compilerExe : File,
+    val archiverExe : File,
+    val linkerExe : File,
+    val compileDefaultFlags : Seq[String] = Seq(),
+    val linkDefaultFlags : Seq[String] = Seq() ) extends Compiler
 {
     private def reportFileGenerated( s : TaskStreams, genFile : File )
     {
@@ -23,11 +25,12 @@ case class GccCompiler(
     
         val includePathArg = includePaths.map( ip => "-I " + ip ).mkString(" ")
         val systemIncludePathArg = systemIncludePaths.map( ip => "-isystem " + ip ).mkString(" ")
-        val additionalFlags = compilerFlags.mkString(" ")
-        val depCmd = "%s %s %s -M %s %s %s".format( compilerPath, compileFlags, additionalFlags, includePathArg, systemIncludePathArg, sourceFile )
         
-        s.log.debug( "Executing: " + depCmd )
-        val depResult = stringToProcess( depCmd ).lines
+        val depCmd = Seq[String]( compilerExe.toString, "-M", sourceFile.toString ) ++ compileDefaultFlags ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ (defaultIncludePaths ++ systemIncludePaths).map( ip => "-isystem" + ip.toString )
+        
+        s.log.debug( "Executing: " + depCmd.mkString(" ") )
+        
+        val depResult = Process( depCmd, buildDirectory, "PATH" -> toolPaths.mkString(":") ).lines
         
         // Strip off any trailing backslash characters from the output
         val depFileLines = depResult.map( _.replace( "\\", "" ) )
@@ -43,13 +46,10 @@ case class GccCompiler(
     def compileToObjectFile( s : TaskStreams, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
     { outputFile =>
     
-        val includePathArg = includePaths.map( ip => "-I " + ip ).mkString(" ")
-        val systemIncludePathArg = systemIncludePaths.map( ip => "-isystem " + ip ).mkString(" ")
-        val additionalFlags = compilerFlags.mkString(" ")
-        val buildCmd = "%s -fPIC %s %s %s %s -c -o %s %s".format( compilerPath, compileFlags, additionalFlags, includePathArg, systemIncludePathArg, outputFile, sourceFile )
+        val buildCmd = Seq[String]( compilerExe.toString, "-fPIC", "-c", "-o", outputFile.toString, sourceFile.toString ) ++ compileDefaultFlags ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ (defaultIncludePaths ++ systemIncludePaths).map( ip => "-isystem" + ip.toString )
 
-        s.log.debug( "Executing: " + buildCmd )
-        buildCmd !!
+        s.log.debug( "Executing: " + buildCmd.mkString(" ") )
+        Process( buildCmd, buildDirectory, "PATH" -> toolPaths.mkString(":") ) !!
         
         reportFileGenerated( s, outputFile )
     }
@@ -58,9 +58,9 @@ case class GccCompiler(
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".a") )
         { outputFile =>
         
-            val arCmd = "%s -c -r %s %s".format( archiverPath, outputFile, objectFiles.mkString(" ") )
-            s.log.debug( "Executing: " + arCmd )
-            arCmd !!
+            val arCmd = Seq[String]( archiverExe.toString, "-c", "-r", outputFile.toString ) ++ objectFiles.map( _.toString )
+            s.log.debug( "Executing: " + arCmd.mkString(" ") )
+            Process( arCmd, buildDirectory, "PATH" -> toolPaths.mkString(":") ) !!
             
             reportFileGenerated( s, outputFile )
         }
@@ -69,9 +69,9 @@ case class GccCompiler(
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
         { outputFile =>
         
-            val cmd = "%s -shared -o %s %s".format( compilerPath, outputFile, objectFiles.mkString(" ") )
-            s.log.debug( "Executing: " + cmd )
-            cmd !!
+            val cmd = Seq[String]( compilerExe.toString, "-shared", "-o", outputFile.toString ) ++ objectFiles.map( _.toString )
+            s.log.debug( "Executing: " + cmd.mkString(" ") )
+            Process( cmd, buildDirectory, "PATH" -> toolPaths.mkString(":") ) !!
             
             reportFileGenerated( s, outputFile )
         }
@@ -79,12 +79,10 @@ case class GccCompiler(
     def buildExecutable( s : TaskStreams, buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) =
         FunctionWithResultPath( buildDirectory / exeName )
         { outputFile =>
-        
-            val linkPathArg = linkPaths.map( lp => "-L " + lp ).mkString(" ")
-            val libArgs = linkLibraries.map( ll => "-l" + ll ).mkString(" ")
-            val linkCmd = "%s %s -o %s %s %s %s".format( linkerPath, linkFlags, outputFile, inputFiles.mkString(" "), linkPathArg, libArgs )
-            s.log.debug( "Executing: " + linkCmd )
-            linkCmd !!
+            val linkCmd = Seq[String]( linkerExe.toString, "-o" + outputFile.toString ) ++ linkDefaultFlags ++ inputFiles.map( _.toString ) ++ linkPaths.map( lp => "-L" + lp ) ++ linkLibraries.map( ll => "-l" + ll )
+            s.log.debug( "Executing: " + linkCmd.mkString(" ") )
+            
+            Process( linkCmd, buildDirectory, "PATH" -> toolPaths.mkString(":") ) !!
             
             reportFileGenerated( s, outputFile )
         }

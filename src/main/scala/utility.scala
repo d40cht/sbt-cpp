@@ -3,6 +3,8 @@ package org.seacourt.build
 import sbt._
 import Keys._
 
+import scala.collection.{mutable, immutable}
+
 /**
   * Class to handle calling a function only if its input files are newer
   * than the file it will create
@@ -33,22 +35,29 @@ object FunctionWithResultPath
 
 object ProcessUtil
 {
+    def captureProcessOutput( pb : ProcessBuilder ) : (Int, String, String) =
+    {
+        var stderr = mutable.ArrayBuffer[String]()
+        var stdout = mutable.ArrayBuffer[String]()
+        class ProcessOutputToString extends ProcessLogger
+        {
+            override def buffer[T]( f : => T ) = f
+            override def error( s : => String ) = stderr.append(s)
+            override def info( s : => String )  = stdout.append(s)
+        }
+        
+        val res = pb ! new ProcessOutputToString()
+        
+        (res, stderr.mkString("\n"), stdout.mkString("\n"))
+    }
+    
     /**
       * Helper function to process sbt process log stdout and stderr streams to
       * a couple of files
       */
     def pipeProcessOutput( pb : ProcessBuilder, stdoutFile : File, stderrFile : File )
     {
-        var stderr = ""
-        var stdout = ""
-        class ProcessOutputToFile extends ProcessLogger
-        {
-            override def buffer[T]( f : => T ) = f
-            override def error( s : => String ) = stderr += s
-            override def info( s : => String ) = stdout += s
-        }
-        
-        val res = pb ! new ProcessOutputToFile()
+        val (res, stderr, stdout) = captureProcessOutput(pb)
         
         IO.write( stderrFile, stderr )
         IO.write( stdoutFile, stdout )

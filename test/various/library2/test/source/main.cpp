@@ -23,7 +23,11 @@ int main( int /*argc*/, char** /*argv*/ )
     CHECK_EQUAL( conditionalFlagCheck(), 2 );
 #endif
     
+#ifdef CLANG
+    CHECK_EQUAL( compiler(), "AppleTart" );
+#else
     CHECK_EQUAL( compiler(), "GnueyGoodness" );
+#endif
     CHECK_EQUAL( targetPlatform(), "x86LinusLand" );
     
     return 0;

@@ -34,6 +34,8 @@ public:
     {
     }
     
+    const char* what() const throw() { return m_message; }
+    
 private:
     const char* m_message;
 };

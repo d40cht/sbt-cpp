@@ -13,6 +13,9 @@ import scala.collection.{mutable, immutable}
   */
 trait Compiler
 {
+    def toolPaths : Seq[File]
+    def defaultLibraryPaths : Seq[File]
+    def defaultIncludePaths : Seq[File]
     def findHeaderDependencies( s : TaskStreams, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) : FunctionWithResultPath
     def compileToObjectFile( s : TaskStreams, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) : FunctionWithResultPath
     def buildStaticLibrary( s : TaskStreams, buildDirectory : File, libName : String, objectFiles : Seq[File] ) : FunctionWithResultPath
@@ -236,7 +239,7 @@ abstract class NativeBuild extends Build
                 
                 nativeLibraries     <<= (projectBuildDirectory) map { _ => Seq() },
                 
-                sourceDirectories  <<= (projectDirectory) map { pd => Seq(pd / "source") },
+                sourceDirectories   <<= (projectDirectory) map { pd => Seq(pd / "source") },
                 
                 sourceFiles         <<= (sourceDirectories) map { _.flatMap { sd => ((sd * "*.cpp").get ++ (sd * "*.c").get) } },
                 

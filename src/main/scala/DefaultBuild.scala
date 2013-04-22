@@ -20,12 +20,14 @@ object NativeDefaultBuild
     case object Release extends DebugOptLevel
     case object Debug   extends DebugOptLevel
     
-    sealed trait NativeCompiler    
+    sealed trait NativeCompiler  
     case object Gcc     extends NativeCompiler
     case object Clang   extends NativeCompiler
+    case object VSCl    extends NativeCompiler
     
     sealed trait TargetPlatform
     case object LinuxPC     extends TargetPlatform
+    case object WindowsPC   extends TargetPlatform
     case object BeagleBone  extends TargetPlatform
 }
 
@@ -39,10 +41,26 @@ class NativeDefaultBuild extends NativeBuild
         def pathDirs    = Seq( debugOptLevel.toString, compiler.toString, targetPlatform.toString )
     }
     
-    lazy val baseGcc = new GccCompiler( file("/usr/bin/g++-4.7"), file("/usr/bin/ar"), file("/usr/bin/g++-4.7") )
+    lazy val gccDefault = new GccCompiler(
+        toolPaths           = Seq( file("/usr/bin/") ),
+        defaultIncludePaths = Seq(),
+        defaultLibraryPaths = Seq(),
+        compilerExe         = file("g++-4.7"),
+        archiverExe         = file("ar"),
+        linkerExe           = file("g++-4.7") )
+        
+    lazy val clangDefault = new GccCompiler(
+        toolPaths           = Seq( file("/home/alex.wilson/tmp/clang/clang+llvm-3.2-x86_64-linux-ubuntu-12.04/bin"), file("/usr/bin/") ),
+        defaultIncludePaths = Seq( file("/usr/include/x86_64-linux-gnu/c++/4.7") ),
+        defaultLibraryPaths = Seq(),
+        compilerExe         = file("clang++"),
+        archiverExe         = file("ar"),
+        linkerExe           = file("clang++") )
     
     override lazy val configurations = Set[Environment](
-        new Environment( new BuildType( Release, Gcc, LinuxPC ), baseGcc.copy( compileFlags="-std=c++11 -O2 -Wall -Wextra -DLINUX -DRELEASE" ) ),
-        new Environment( new BuildType( Debug, Gcc, LinuxPC ), baseGcc.copy( compileFlags="-std=c++11 -g -Wall -Wextra -DLINUX -DDEBUG" ) )
+        new Environment( new BuildType( Release, Gcc, LinuxPC ), gccDefault.copy( compileDefaultFlags=Seq("-std=c++11", "-O2", "-Wall", "-Wextra", "-DLINUX", "-DRELEASE", "-DGCC") ) ),
+        new Environment( new BuildType( Debug, Gcc, LinuxPC ), gccDefault.copy( compileDefaultFlags=Seq("-std=c++11", "-g", "-Wall", "-Wextra", "-DLINUX", "-DDEBUG", "-DGCC") ) ),
+        new Environment( new BuildType( Release, Clang, LinuxPC ), clangDefault.copy( compileDefaultFlags=Seq("-std=c++11", "-O2", "-Wall", "-Wextra", "-DLINUX", "-DRELEASE", "-DCLANG") ) ),
+        new Environment( new BuildType( Debug, Clang, LinuxPC ), clangDefault.copy( compileDefaultFlags=Seq("-std=c++11", "-g", "-Wall", "-Wextra", "-DLINUX", "-DDEBUG", "-DCLANG") ) )
     )
 }
