@@ -12,6 +12,9 @@ object TestCompiler
     {
         IO.withTemporaryDirectory
         { td =>
+
+            //val td = file( "gook" ).getAbsoluteFile
+            IO.createDirectory( td )
             
             val testFile = td / "test.cpp"
             IO.write( testFile, minimalProgram )
@@ -24,7 +27,11 @@ object TestCompiler
             }
             catch
             {
-                case e : java.lang.RuntimeException => false
+                case e : java.lang.RuntimeException => 
+                {
+                    println( e )
+                    false
+                }
             }
         }
     }
@@ -100,7 +107,7 @@ object TestCompiler
         requireHeader( "stdio.h" )
         requireHeader( "iostream" )
         
-        requireHeader( "zlib.h" )
+        //requireHeader( "zlib.h" )
         
         assert( !testForHeader( s, compiler, "boggletoop" ) )
         assert( !testForSymbolDeclaration( s, compiler, "toffeecake", Seq("stdio.h") ) )
@@ -127,22 +134,22 @@ object TestBuild extends NativeDefaultBuild
 {
     lazy val checkLib = ProjectRef( file("../utility"), "check" )
     
-    lazy val foo = NativeProject( "foo", file("./foo"), Seq(
+    lazy val foo = NativeProject( "foo", file("foo"), Seq(
         compile <<= (streams, buildEnvironment) map
         { (s, be) =>
         
             println( "Running minimal compiler test" )
             
-            TestCompiler.minimalTest( s, be.compiler )
+            //TestCompiler.minimalTest( s, be.compiler )
             
             sbt.inc.Analysis.Empty
         } ) )
         
     
-    lazy val library1 = StaticLibrary( "library1", file( "./library1" ), Seq() )
+    lazy val library1 = StaticLibrary( "library1", file( "library1" ), Seq() )
         .nativeDependsOn( checkLib )
         
-    lazy val library2 = SharedLibrary( "library2", file( "./library2" ),
+    lazy val library2 = SharedLibrary( "library2", file( "library2" ),
         Seq(
             cppCompileFlags <++= (buildEnvironment) map
             { be =>
