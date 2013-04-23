@@ -4,6 +4,7 @@ import sbt._
 import Keys._
 import complete.{Parser, RichParser}
 import complete.DefaultParsers._
+import com.typesafe.config.ConfigFactory
 import scala.collection.{mutable, immutable}
 
 //import sbt.std.{TaskStreams}
@@ -16,11 +17,11 @@ trait Compiler
     def toolPaths : Seq[File]
     def defaultLibraryPaths : Seq[File]
     def defaultIncludePaths : Seq[File]
-    def findHeaderDependencies( s : TaskStreams, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) : FunctionWithResultPath
-    def compileToObjectFile( s : TaskStreams, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) : FunctionWithResultPath
-    def buildStaticLibrary( s : TaskStreams, buildDirectory : File, libName : String, objectFiles : Seq[File] ) : FunctionWithResultPath
-    def buildSharedLibrary( s : TaskStreams, buildDirectory : File, libName : String, objectFiles : Seq[File] ) : FunctionWithResultPath
-    def buildExecutable( s : TaskStreams, buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) : FunctionWithResultPath
+    def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean = false ) : FunctionWithResultPath
+    def compileToObjectFile( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean = false ) : FunctionWithResultPath
+    def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
+    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
+    def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
 }
 
 /**
@@ -31,6 +32,8 @@ trait BuildTypeTrait
 {
     def name        : String
     def pathDirs    : Seq[String]
+    
+    def targetDirectory( rootDirectory : File ) = pathDirs.foldLeft( rootDirectory )( _ / _ )
 }
 
 /**
@@ -53,6 +56,13 @@ abstract class NativeBuild extends Build
 {
     import NativeBuild._
     
+    // Magic Gav suggested that the ConfigFactory needs the classloader for this class
+    // in order to be able to get things out of the jar in which it is packaged. This seems
+    // to work, so kudos to him.
+    lazy val conf = ConfigFactory.load(getClass.getClassLoader)
+    
+    lazy val buildRootDirectory = file( conf.getString( "build.rootdirectory" ) ).getAbsoluteFile
+    
     type SubProjectBuilders = Seq[Project => Project]
     
     private lazy val allProjectVals : Seq[Project] = ReflectUtilities.allVals[Project](this).values.toSeq
@@ -60,6 +70,9 @@ abstract class NativeBuild extends Build
     
     def nativeProjects = nativeProjectVals
     
+    /**
+      * This is the general entry point for sbt. So we do some checking here too
+      */
     override lazy val projects : Seq[Project] =
     {
         // Extract and register any subprojects within the native projects (Generally used for test purposes)
@@ -83,10 +96,57 @@ abstract class NativeBuild extends Build
     
     case class Environment( val conf : BuildType, val compiler : Compiler )
     
+    // TODO: Currently not thread/process safe. Fix!
+    case class PlatformConfig private ( private val cacheFile : File, private val configMap : immutable.Map[String, String])
+    {
+        def add( k : String, v : => String )
+        {
+            if ( configMap.contains(k) ) configMap
+            else
+            {
+                val next = new PlatformConfig( cacheFile, configMap + (k -> v) )
+                PlatformConfig.saveState( next )
+                next
+            }
+        }
+        
+        def get(k : String) = configMap.get(k)
+    }
+    
+    object PlatformConfig
+    {
+        def apply( cacheFile: File ) = loadState( cacheFile )
+        
+        private def saveState( platformConfig : PlatformConfig )
+        {
+            val lines = platformConfig.configMap.map { case (k, v) => "%s,%s".format( k, v ) }.mkString("\n")
+            IO.write( platformConfig.cacheFile, lines )
+        }
+        
+        private def loadState( cacheFile : File ) =
+        {
+            val kvp = if ( cacheFile.exists )
+            {
+                val lines = IO.readLines( cacheFile )
+                lines.map( _.split(",").map( _.trim ) ).map( x => (x(0), x(1)) ).toMap
+            }
+            else Map[String, String]()
+            
+            new PlatformConfig( cacheFile, kvp )
+        }
+    }
+    
     def configurations : Set[Environment]
+    
+    // Override this in your project to do some minimal checks on the build environment
+    def checkEnvironment( log : Logger, env : Environment ) : Boolean =
+    {
+        true
+    }
     
     val compiler = TaskKey[Compiler]("native-compiler")
     val buildEnvironment = TaskKey[Environment]("native-build-environment")
+    val nativePlatformConfig = TaskKey[PlatformConfig]("native-platform-config")
     val rootBuildDirectory = TaskKey[File]("native-root-build-dir", "Build root directory (for the config, not the project)")
     val projectBuildDirectory = TaskKey[File]("native-project-build-dir", "Build directory for this config and project")
     val stateCacheDirectory = TaskKey[File]("native-state-cache-dir", "Build state cache directory")
@@ -127,6 +187,15 @@ abstract class NativeBuild extends Build
         val env = envDict(envName)
 
         val updatedAttributes = state.attributes.put( envKey, env )
+        
+        //val envCheckFile = buildTargetDirectory / env.conf.pathDirs( .foldLeft( td )( _ / _ )
+        val envCheckFile = env.conf.targetDirectory(buildRootDirectory) / "EnvHealthy.txt"
+        
+        if ( !envCheckFile.exists )
+        {
+            checkEnvironment( state.log, env )
+            IO.write( envCheckFile, "HEALTHY" )
+        }
         
         state.copy( attributes=updatedAttributes )
     }
@@ -171,15 +240,6 @@ abstract class NativeBuild extends Build
             watchTransitiveSources  <<= Defaults.watchTransitiveSourcesTask,                
             watch                   <<= Defaults.watchSetting
         )
-    
-        private def taskMapReduce[T, S]( inputs : Seq[T] )( mapFn : T => S )( reduceFn : (S, S) => S ) : Task[S] =
-        {
-            val taskSeq : Seq[Task[S]] = inputs.map( i => toTask( () => mapFn(i) ) ).toIndexedSeq
-            
-            val reduceRes : Task[S] = sbt.std.TaskExtra.reduced( taskSeq.toIndexedSeq, reduceFn )
-            
-            reduceRes
-        }
         
         def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], subProjectBuilders : SubProjectBuilders = Seq() ) =
         {
@@ -199,17 +259,12 @@ abstract class NativeBuild extends Build
                     beo.get
                 },
                 
-                target              <<= baseDirectory { _ / "target" / "native" },
+                //target              <<= baseDirectory { _ / "target" / "native" },
+                target              := buildRootDirectory,
                 
                 historyPath         <<= target { t => Some(t / ".history") },
                 
-                rootBuildDirectory  <<= (target, buildEnvironment) map
-                { case (td, be) =>
-                
-                    val dir = be.conf.pathDirs.foldLeft( td )( _ / _ )
-                    
-                    dir
-                },
+                rootBuildDirectory  <<= (target, buildEnvironment) map { case (td, be) => be.conf.targetDirectory(td) },
                 
                 clean               <<= (rootBuildDirectory) map { rbd => IO.delete(rbd) },
                 
@@ -250,15 +305,14 @@ abstract class NativeBuild extends Build
                     // Calculate dependencies
                     def findDependencies( sourceFile : File ) : Seq[File] =
                     {
-                        val depGen = c.findHeaderDependencies( s, bd, ids, sids, sourceFile, cfs )
+                        val depGen = c.findHeaderDependencies( s.log, bd, ids, sids, sourceFile, cfs )
                         
                         depGen.runIfNotCached( scd, Seq(sourceFile) )
                         
                         IO.readLines(depGen.resultPath).map( file )
                     }
                     
-                    taskMapReduce( sfs ) { sf => Seq( (sf, findDependencies(sf)) ) }( _ ++ _ )
-                    //sfs.par.map( sf => (sf, findDependencies(sf) ) ).seq
+                    sfs.map( sf => toTask( () => (sf, findDependencies(sf)) ) ).join
                 },
                 
                 runEnvironmentVariables    := Seq(),
@@ -271,21 +325,22 @@ abstract class NativeBuild extends Build
                     
                     case (c, bd, scd, ids, sids, sfwdeps, cfs, s) =>
                     
-                    taskMapReduce( sfwdeps )
-                    { case (sourceFile, dependencies) =>
+                    sfwdeps.map
+                    {
+                        case (sourceFile, dependencies) =>
                     
-                        val blf = c.compileToObjectFile( s, bd, ids, sids, sourceFile, cfs )
+                        val blf = c.compileToObjectFile( s.log, bd, ids, sids, sourceFile, cfs )
                         
-                        Seq(blf.runIfNotCached( scd, dependencies ))
-                    }( _ ++ _ )
+                        toTask( () => blf.runIfNotCached( scd, dependencies ) )
+                    }.join
                 },
                 
                 nativeTest                  :=  None,
                 test                        :=  Unit,
-                exportedLibs                <<= (streams, name) map { case (s, n) => s.log.warn( "No libraries exported by this project (%s)".format(n) ); Seq() },
-                exportedLibDirectories      <<= (streams, name) map { case (s, n) => s.log.warn( "No library paths exported by this project (%s)".format(n) ); Seq() },
-                exportedIncludeDirectories  <<= (streams, name) map { case (s, n) => s.log.warn( "No include directories exported by this project (%s)".format(n) ); Seq() },
-                nativeExe                   <<= (streams, name) map { case (s, n) => s.log.warn( "No executable built by this project (%s)".format(n) ); file("") }
+                exportedLibs                <<= (streams, name) map { case (s, n) => /*s.log.warn( "No libraries exported by this project (%s)".format(n) );*/ Seq() },
+                exportedLibDirectories      <<= (streams, name) map { case (s, n) => /*s.log.warn( "No library paths exported by this project (%s)".format(n) );*/ Seq() },
+                exportedIncludeDirectories  <<= (streams, name) map { case (s, n) => /*s.log.warn( "No include directories exported by this project (%s)".format(n) );*/ Seq() },
+                nativeExe                   <<= (streams, name) map { case (s, n) => /*s.log.warn( "No executable built by this project (%s)".format(n) );*/ file("") }
             )
             
             val p = Project( id=_name, base=file("./"), settings=defaultSettings ++ _settings )
@@ -302,8 +357,8 @@ abstract class NativeBuild extends Build
                 exportedLibs <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, streams) map
                 { case (c, projName, bd, scd, ofs, s) =>
                 
-                    val blf = if ( isShared ) c.buildSharedLibrary( s, bd, projName, ofs )
-                    else c.buildStaticLibrary( s, bd, projName, ofs )
+                    val blf = if ( isShared ) c.buildSharedLibrary( s.log, bd, projName, ofs )
+                    else c.buildStaticLibrary( s.log, bd, projName, ofs )
                     
                     Seq( blf.runIfNotCached( scd, ofs ) )
                 },
@@ -365,7 +420,7 @@ abstract class NativeBuild extends Build
                 nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkDirectories, nativeLibraries, streams) map
                 { case (c, projName, bd, scd, ofs, lds, nls, s) =>
                 
-                    val blf = c.buildExecutable( s, bd, projName, lds, nls, ofs )
+                    val blf = c.buildExecutable( s.log, bd, projName, lds, nls, ofs )
                     
                     blf.runIfNotCached( scd, ofs )
                 },
@@ -403,7 +458,7 @@ abstract class NativeBuild extends Build
                 nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkDirectories, nativeLibraries, streams) map
                 { case (c, projName, bd, scd, ofs, lds, nls, s) =>
                 
-                    val blf = c.buildExecutable( s, bd, projName, lds, nls, ofs )
+                    val blf = c.buildExecutable( s.log, bd, projName, lds, nls, ofs )
                     
                     blf.runIfNotCached( scd, ofs )
                 },

@@ -32,23 +32,35 @@ object FunctionWithResultPath
     }
 }
 
+class ProcessOutputToString extends ProcessLogger
+{
+    val stderr = mutable.ArrayBuffer[String]()
+    val stdout = mutable.ArrayBuffer[String]()
+    
+    override def buffer[T]( f : => T ) = f
+    override def error( s : => String ) = stderr.append(s)
+    override def info( s : => String )  = stdout.append(s)
+}
+
+class ProcessOutputToLog( val log : Logger ) extends ProcessOutputToString
+{
+    override def buffer[T]( f : => T ) = f
+    override def error( s : => String ) = { super.error(s); log.error(s) }
+    override def info( s : => String )  = { super.info(s); log.info(s) }
+}
+
 
 object ProcessUtil
 {
     def captureProcessOutput( pb : ProcessBuilder ) : (Int, String, String) =
     {
-        var stderr = mutable.ArrayBuffer[String]()
-        var stdout = mutable.ArrayBuffer[String]()
-        class ProcessOutputToString extends ProcessLogger
-        {
-            override def buffer[T]( f : => T ) = f
-            override def error( s : => String ) = stderr.append(s)
-            override def info( s : => String )  = stdout.append(s)
-        }
+        val stderr = mutable.ArrayBuffer[String]()
+        val stdout = mutable.ArrayBuffer[String]()
         
-        val res = pb ! new ProcessOutputToString()
+        val peos = new ProcessOutputToString
+        val res = pb ! peos
         
-        (res, stderr.mkString("\n"), stdout.mkString("\n"))
+        (res, peos.stderr.mkString("\n"), peos.stdout.mkString("\n"))
     }
     
     /**

@@ -16,18 +16,18 @@ case class VSCompiler(
     val compileDefaultFlags : Seq[String] = Seq(),
     val linkDefaultFlags : Seq[String] = Seq() ) extends Compiler
 {
-    private def reportFileGenerated( s : TaskStreams, genFile : File )
+    private def reportFileGenerated( log : Logger, genFile : File, quiet : Boolean )
     {
-        s.log.success( genFile.toString )
+        log.success( genFile.toString )
     }
 
 
-    def findHeaderDependencies( s : TaskStreams, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
+    def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
 
         val depCmd = Seq[String]( compilerExe.toString, "/showIncludes", sourceFile.toString ) ++ compileDefaultFlags ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString ) ) ++ (defaultIncludePaths ++ systemIncludePaths).flatMap( ip => Seq("/I", ip.toString) )
 
-        s.log.debug( "Executing: " + depCmd.mkString(" ") )
+        log.debug( "Executing: " + depCmd.mkString(" ") )
 
         val depResult = Process( depCmd, buildDirectory, "PATH" -> toolPaths.mkString(";") ).lines
 
@@ -40,52 +40,52 @@ case class VSCompiler(
 
         IO.write( depFile, allFiles.mkString("\n") )
 
-        reportFileGenerated( s, depFile )
+        reportFileGenerated( log, depFile, quiet )
     }
 
-    def compileToObjectFile( s : TaskStreams, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
+    def compileToObjectFile( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
     { outputFile =>
 
         val buildCmd = Seq[String]( compilerExe.toString, "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compileDefaultFlags ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ (defaultIncludePaths ++ systemIncludePaths).flatMap( ip => Seq("/I", ip.toString) )
 
-        s.log.debug( "Executing: " + buildCmd.mkString(" ") )
+        log.debug( "Executing: " + buildCmd.mkString(" ") )
 
         Process( buildCmd, buildDirectory, "PATH" -> toolPaths.mkString(";") ) !!
 
-        reportFileGenerated( s, outputFile )
+        reportFileGenerated( log, outputFile, quiet )
     }
 
-    def buildStaticLibrary( s : TaskStreams, buildDirectory : File, libName : String, objectFiles : Seq[File] ) =
+    def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".a") )
         { outputFile =>
 
             val arCmd = Seq[String]( archiverExe.toString, "-c", "-r", outputFile.toString ) ++ objectFiles.map( _.toString )
-            s.log.debug( "Executing: " + arCmd.mkString(" ") )
+            log.debug( "Executing: " + arCmd.mkString(" ") )
             Process( arCmd, buildDirectory, "PATH" -> toolPaths.mkString(";") ) !!
 
-            reportFileGenerated( s, outputFile )
+            reportFileGenerated( log, outputFile, quiet )
         }
 
-    def buildSharedLibrary( s : TaskStreams, buildDirectory : File, libName : String, objectFiles : Seq[File] ) =
+    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
         { outputFile =>
 
             val cmd = Seq[String]( compilerExe.toString, "-shared", "-o", outputFile.toString ) ++ objectFiles.map( _.toString )
-            s.log.debug( "Executing: " + cmd.mkString(" ") )
+            log.debug( "Executing: " + cmd.mkString(" ") )
             Process( cmd, buildDirectory, "PATH" -> toolPaths.mkString(":") ) !!
 
-            reportFileGenerated( s, outputFile )
+            reportFileGenerated( log, outputFile, quiet )
         }
 
-    def buildExecutable( s : TaskStreams, buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) =
+    def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / exeName )
         { outputFile =>
             val linkCmd = Seq[String]( linkerExe.toString, "-o" + outputFile.toString ) ++ linkDefaultFlags ++ inputFiles.map( _.toString ) ++ linkPaths.map( lp => "-L" + lp ) ++ linkLibraries.map( ll => "-l" + ll )
-            s.log.debug( "Executing: " + linkCmd.mkString(" ") )
+            log.debug( "Executing: " + linkCmd.mkString(" ") )
 
             Process( linkCmd, buildDirectory, "PATH" -> toolPaths.mkString(":") ) !!
 
-            reportFileGenerated( s, outputFile )
+            reportFileGenerated( log, outputFile, quiet )
         }
 }
 
@@ -99,73 +99,94 @@ case class GccCompiler(
     val compileDefaultFlags : Seq[String] = Seq(),
     val linkDefaultFlags : Seq[String] = Seq() ) extends Compiler
 {
-    private def reportFileGenerated( s : TaskStreams, genFile : File )
+    private def reportFileGenerated( log : Logger, genFile : File, quiet : Boolean )
     {
-        s.log.success( genFile.toString )
+        if ( !quiet ) log.success( genFile.toString )
     }
     
-    def findHeaderDependencies( s : TaskStreams, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
+    case class ProcessResult( val retCode : Int, val stdout : String, val stderr : String )
+    
+    def runProcess( log : Logger, cmd : Seq[String], cwd : File, env : Seq[(String, String)], quiet : Boolean ) =
+    {
+        val pl = new ProcessOutputToString()
+        
+        val res = Process( cmd, cwd, env : _* ) ! pl
+        
+        if ( res != 0 )
+        {
+            if ( !quiet )
+            {
+                pl.stderr.foreach( ll => log.error(ll) )
+            }
+            
+            throw new java.lang.RuntimeException( "Non-zero exit code: " + res )
+        }
+        
+        new ProcessResult(res, pl.stdout.mkString("\n"), pl.stderr.mkString("\n"))
+    }
+    
+    def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
     
         val depCmd = Seq[String]( compilerExe.toString, "-M", sourceFile.toString ) ++ compileDefaultFlags ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ (defaultIncludePaths ++ systemIncludePaths).map( ip => "-isystem" + ip.toString )
         
-        s.log.debug( "Executing: " + depCmd.mkString(" ") )
+        log.debug( "Executing: " + depCmd.mkString(" ") )
         
-        val depResult = Process( depCmd, buildDirectory, "PATH" -> toolPaths.mkString(":") ).lines
+        val depResult = runProcess( log, depCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
         
         // Strip off any trailing backslash characters from the output
-        val depFileLines = depResult.map( _.replace( "\\", "" ) )
+        val depFileLines = depResult.stdout.split("\n").map( _.replace( "\\", "" ) )
     
         // Drop the first column and split on spaces to get all the files (potentially several per line )
         val allFiles = depFileLines.flatMap( _.split(" ").drop(1) ).map( x => new File(x.trim) )
         
         IO.write( depFile, allFiles.mkString("\n") )
         
-        reportFileGenerated( s, depFile )
+        reportFileGenerated( log, depFile, quiet )
     }
     
-    def compileToObjectFile( s : TaskStreams, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String] ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
+    def compileToObjectFile( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
     { outputFile =>
     
         val buildCmd = Seq[String]( compilerExe.toString, "-fPIC", "-c", "-o", outputFile.toString, sourceFile.toString ) ++ compileDefaultFlags ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ (defaultIncludePaths ++ systemIncludePaths).map( ip => "-isystem" + ip.toString )
 
-        s.log.debug( "Executing: " + buildCmd.mkString(" ") )
-        Process( buildCmd, buildDirectory, "PATH" -> toolPaths.mkString(":") ) !!
+        log.debug( "Executing: " + buildCmd.mkString(" ") )
+        runProcess( log, buildCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
         
-        reportFileGenerated( s, outputFile )
+        reportFileGenerated( log, outputFile, quiet )
     }
     
-    def buildStaticLibrary( s : TaskStreams, buildDirectory : File, libName : String, objectFiles : Seq[File] ) =
+    def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".a") )
         { outputFile =>
         
             val arCmd = Seq[String]( archiverExe.toString, "-c", "-r", outputFile.toString ) ++ objectFiles.map( _.toString )
-            s.log.debug( "Executing: " + arCmd.mkString(" ") )
-            Process( arCmd, buildDirectory, "PATH" -> toolPaths.mkString(":") ) !!
+            log.debug( "Executing: " + arCmd.mkString(" ") )
+            runProcess( log, arCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
             
-            reportFileGenerated( s, outputFile )
+            reportFileGenerated( log, outputFile, quiet )
         }
         
-    def buildSharedLibrary( s : TaskStreams, buildDirectory : File, libName : String, objectFiles : Seq[File] ) =
+    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
         { outputFile =>
         
             val cmd = Seq[String]( compilerExe.toString, "-shared", "-o", outputFile.toString ) ++ objectFiles.map( _.toString )
-            s.log.debug( "Executing: " + cmd.mkString(" ") )
-            Process( cmd, buildDirectory, "PATH" -> toolPaths.mkString(":") ) !!
+            log.debug( "Executing: " + cmd.mkString(" ") )
+            runProcess( log, cmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
             
-            reportFileGenerated( s, outputFile )
+            reportFileGenerated( log, outputFile, quiet )
         }
         
-    def buildExecutable( s : TaskStreams, buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File] ) =
+    def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / exeName )
         { outputFile =>
             val linkCmd = Seq[String]( linkerExe.toString, "-o" + outputFile.toString ) ++ linkDefaultFlags ++ inputFiles.map( _.toString ) ++ linkPaths.map( lp => "-L" + lp ) ++ linkLibraries.map( ll => "-l" + ll )
-            s.log.debug( "Executing: " + linkCmd.mkString(" ") )
+            log.debug( "Executing: " + linkCmd.mkString(" ") )
             
-            Process( linkCmd, buildDirectory, "PATH" -> toolPaths.mkString(":") ) !!
+            runProcess( log, linkCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
             
-            reportFileGenerated( s, outputFile )
+            reportFileGenerated( log, outputFile, quiet )
         }
 }
 

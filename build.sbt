@@ -14,6 +14,8 @@ publishTo := Some(Resolver.file("file", new File("./releases")))
 
 libraryDependencies += "com.typesafe" % "config" % "1.0.0"
 
+libraryDependencies += "com.sleepycat" % "je" % "4.0.92"
+
 scalacOptions ++= Seq( "-deprecation", "-optimize" )
 
 

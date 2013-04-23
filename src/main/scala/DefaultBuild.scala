@@ -43,11 +43,6 @@ class NativeDefaultBuild extends NativeBuild
         def pathDirs    = Seq( debugOptLevel.toString, compiler.toString, targetPlatform.toString )
     }
     
-    // Magic Gav suggested that the ConfigFactory needs the classloader for this class
-    // in order to be able to get things out of the jar in which it is packaged. This seems
-    // to work, so kudos to him.
-    lazy val conf = ConfigFactory.load(getClass.getClassLoader)
-    
     lazy val gccDefault = new GccCompiler(
         toolPaths           = conf.getStringList("gcc.toolpaths").map( file ),
         defaultIncludePaths = conf.getStringList("gcc.includepaths").map( file ),
@@ -73,8 +68,6 @@ class NativeDefaultBuild extends NativeBuild
         archiverExe         = file( conf.getString("vscl.archiver") ),
         linkerExe           = file( conf.getString("vscl.linker") ) )
 
-    // How do we override these paths etc in user builds? I guess by deriving from default build and overriding configurations?
-    
     override lazy val configurations = Set[Environment](
         new Environment( new BuildType( Release, Gcc, LinuxPC ), gccDefault.copy( compileDefaultFlags=conf.getStringList("gcc.release.flags") ) ),
         new Environment( new BuildType( Debug, Gcc, LinuxPC ), gccDefault.copy( compileDefaultFlags=conf.getStringList("gcc.debug.flags") ) ),
