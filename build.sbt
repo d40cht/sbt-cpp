@@ -12,6 +12,8 @@ publishMavenStyle := false
 
 publishTo := Some(Resolver.file("file", new File("./releases")))
 
+libraryDependencies += "com.typesafe" % "config" % "1.0.0"
+
 scalacOptions ++= Seq( "-deprecation", "-optimize" )
 
 

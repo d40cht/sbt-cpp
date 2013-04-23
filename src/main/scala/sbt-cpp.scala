@@ -208,8 +208,6 @@ abstract class NativeBuild extends Build
                 
                     val dir = be.conf.pathDirs.foldLeft( td )( _ / _ )
                     
-                    IO.createDirectory(dir)
-                    
                     dir
                 },
                 

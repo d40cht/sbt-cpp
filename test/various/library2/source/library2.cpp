@@ -4,9 +4,9 @@
 std::vector<std::string> catVec( const std::vector<std::string>& bippy )
 {
     std::vector<std::string> res;
-    for ( auto& s : bippy )
+    for ( std::vector<std::string>::const_iterator it = bippy.begin(); it != bippy.end(); ++it )
     {
-        res.push_back( stringAdd( s, s ) );
+        res.push_back( stringAdd( *it, *it ) );
     }
     
     return res; 

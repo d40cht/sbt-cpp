@@ -7,9 +7,13 @@
 
 int main( int /*argc*/, char** /*argv*/ )
 {
-    std::vector<std::string> foo = { "aa", "bb", "cc", "dd" };
+    std::vector<std::string> foo;
+    foo.push_back( "aa" );
+    foo.push_back( "bb" );
+    foo.push_back( "cc" );
+    foo.push_back( "dd" );
     
-    auto res = catVec( foo );
+    std::vector<std::string> res = catVec( foo );
     
     CHECK_EQUAL( res[0], "aaaa" );
     CHECK_EQUAL( res[1], "bbbb" );
