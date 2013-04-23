@@ -44,11 +44,28 @@ object TestBuild extends NativeDefaultBuild
 {
     override def checkEnvironment( log : Logger, env : Environment ) =
     {
-        // Require a working c and cxx compiler
-        PlatformChecks.testCCompiler( log, env.compiler )
-        PlatformChecks.testCXXCompiler( log, env.compiler )
+        import PlatformChecks._
         
-        true
+        // Require a working c and cxx compiler
+        testCCompiler( log, env.compiler )
+        testCXXCompiler( log, env.compiler )
+        
+        // Check for a few expected headers and type sizes
+        requireHeader( log, env.compiler, "stdio.h" )
+        requireHeader( log, env.compiler, "iostream" )
+        
+        requireSymbol( log, env.compiler, "printf", Seq("stdio.h") )
+        requireSymbol( log, env.compiler, "std::cout", Seq("iostream") )
+        
+        requireTypeSize( log, env.compiler, "int32_t", 4, Seq("stdint.h") )
+        requireTypeSize( log, env.compiler, "int64_t", 8, Seq("stdint.h") )
+        
+        // Check that a few things that shouldn't exist don't exist
+        assert( !testForHeader( log, env.compiler, "boggletoop" ) )
+        assert( !testForSymbolDeclaration( log, env.compiler, "toffeecake", Seq("stdio.h") ) )
+        
+        assert( !testForTypeSize( log, env.compiler, "int32_t", 3, Seq("stdint.h") ) )
+        assert( !testForTypeSize( log, env.compiler, "int32_t", 5, Seq("stdint.h") ) )
     }
     
     lazy val config = NativeProject( "config", file("."), Seq(
@@ -114,7 +131,6 @@ object TestBuild extends NativeDefaultBuild
                 {
                     case LinuxPC    => Seq("-D", "TARGET_PLATFORM=\"x86LinusLand\"")
                     case WindowsPC  => Seq("-D", "TARGET_PLATFORM=\"x86PointyClicky\"")
-                    case BeagleBone => Seq("-D", "TARGET_PLATFORM=\"Armless\"")
                 }
             }
         ) )

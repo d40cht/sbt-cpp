@@ -8,7 +8,7 @@ import scala.collection.{mutable, immutable}
 
 object PlatformChecks
 {
-    private def tryCompile( log : Logger, compiler : Compiler, minimalProgram : String, includePaths : Seq[File] = Seq() ) : Boolean =
+    def tryCompile( log : Logger, compiler : Compiler, minimalProgram : String, includePaths : Seq[File] = Seq() ) : Boolean =
     {
         IO.withTemporaryDirectory
         { td =>
@@ -70,6 +70,7 @@ object PlatformChecks
             |{
             |    return 0;
             |}""".stripMargin ), "Unable to build minimal c program" )
+            
         log.success( "C compiler able to build a minimal program" )
      }
      
@@ -91,58 +92,22 @@ object PlatformChecks
         log.success( "C++ compiler able to build a minimal program" )
     }
     
-    /*def minimalTest( s : TaskStreams, compiler : Compiler )
+    def requireHeader( log : Logger, compiler : Compiler, headerName : String )
     {
-        assert( tryCompile( s, compiler, """
-            |int foo()
-            |{
-            |    return 0;
-            |}""".stripMargin ), "Unable to build minimal c program" )
-            
-        assert( tryCompile( s, compiler, """
-            |class Bing
-            |{
-            |public:
-            |    Bing() : a(12) {}
-            |    int a;
-            |};
-            |int foo()
-            |{
-            |    Bing bing;
-            |    return bing.a;
-            |}""".stripMargin ), "Unable to build minimal c++ program" )
-            
-        def requireHeader( headerName : String )
-        {
-            assert( testForHeader( s, compiler, headerName ), "Unable to find required header: " + headerName )
-        }
-        
-        def requireSymbol( symbolName : String, headers : Seq[String] )
-        {
-            assert( testForSymbolDeclaration( s, compiler, symbolName, headers ), "Unable to find required symbol declaration: " + symbolName )
-        }
-        
-        def requireTypeSize( typeName : String, typeSize : Int, headers : Seq[String] )
-        {
-            assert( testForTypeSize( s, compiler, typeName, typeSize, headers ), "Type %s is not of required size %d".format( typeName, typeSize ) )
-        }
-        
-        requireHeader( "stdio.h" )
-        requireHeader( "iostream" )
-        
-        //requireHeader( "zlib.h" )
-        
-        assert( !testForHeader( s, compiler, "boggletoop" ) )
-        assert( !testForSymbolDeclaration( s, compiler, "toffeecake", Seq("stdio.h") ) )
-        
-        requireSymbol( "printf", Seq("stdio.h") )
-        requireSymbol( "std::cout", Seq("iostream") )
-        
-        requireTypeSize( "int32_t", 4, Seq("stdint.h") )
-        requireTypeSize( "int64_t", 8, Seq("stdint.h") )
-        
-        assert( !testForTypeSize( s, compiler, "int32_t", 3, Seq("stdint.h") ) )
-        assert( !testForTypeSize( s, compiler, "int32_t", 5, Seq("stdint.h") ) )
-    }*/
+        assert( PlatformChecks.testForHeader( log, compiler, headerName ), "Unable to find required header: " + headerName )
+        log.success( "Required header found: " + headerName )
+    }
+    
+    def requireSymbol( log : Logger, compiler : Compiler, symbolName : String, headers : Seq[String] )
+    {
+        assert( testForSymbolDeclaration( log, compiler, symbolName, headers ), "Unable to find required symbol declaration: " + symbolName )
+        log.success( "Required symbol is available: " + symbolName )
+    }
+    
+    def requireTypeSize( log : Logger, compiler : Compiler, typeName : String, typeSize : Int, headers : Seq[String] )
+    {
+        assert( testForTypeSize( log, compiler, typeName, typeSize, headers ), "Type %s is not of required size %d".format( typeName, typeSize ) )
+        log.success( "Type %s is of required size %d".format( typeName, typeSize ) )
+    }
 }
 

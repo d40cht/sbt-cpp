@@ -29,7 +29,6 @@ object NativeDefaultBuild
     sealed trait TargetPlatform
     case object LinuxPC     extends TargetPlatform
     case object WindowsPC   extends TargetPlatform
-    case object BeagleBone  extends TargetPlatform
 }
 
 class NativeDefaultBuild extends NativeBuild
@@ -77,3 +76,5 @@ class NativeDefaultBuild extends NativeBuild
         new Environment( new BuildType( Debug, VSCl, WindowsPC ), vsDefault.copy( compileDefaultFlags=conf.getStringList("vscl.debug.flags") ) )
     )
 }
+
+

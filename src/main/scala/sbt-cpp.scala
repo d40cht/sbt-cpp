@@ -4,7 +4,7 @@ import sbt._
 import Keys._
 import complete.{Parser, RichParser}
 import complete.DefaultParsers._
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ConfigFactory, ConfigParseOptions}
 import scala.collection.{mutable, immutable}
 
 //import sbt.std.{TaskStreams}
@@ -59,7 +59,12 @@ abstract class NativeBuild extends Build
     // Magic Gav suggested that the ConfigFactory needs the classloader for this class
     // in order to be able to get things out of the jar in which it is packaged. This seems
     // to work, so kudos to him.
-    lazy val conf = ConfigFactory.load(getClass.getClassLoader)
+    lazy val parseOptions = ConfigParseOptions.defaults().setAllowMissing(true)
+    lazy val defaultConf = ConfigFactory.load(getClass.getClassLoader)
+    lazy val localConf = ConfigFactory.parseFile( file("build.conf").getAbsoluteFile, parseOptions )
+    lazy val userConf = ConfigFactory.parseFile( file("user.conf").getAbsoluteFile, parseOptions )
+    
+    lazy val conf = userConf.withFallback( localConf ).withFallback( defaultConf )
     
     lazy val buildRootDirectory = file( conf.getString( "build.rootdirectory" ) ).getAbsoluteFile
     
@@ -138,11 +143,10 @@ abstract class NativeBuild extends Build
     
     def configurations : Set[Environment]
     
-    // Override this in your project to do some minimal checks on the build environment
-    def checkEnvironment( log : Logger, env : Environment ) : Boolean =
-    {
-        true
-    }
+    /**
+     * Override this in your project to do appropriate checks on the build environment
+     */
+    def checkEnvironment( log : Logger, env : Environment ) = { }
     
     val compiler = TaskKey[Compiler]("native-compiler")
     val buildEnvironment = TaskKey[Environment]("native-build-environment")
