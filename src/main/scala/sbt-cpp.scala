@@ -24,6 +24,38 @@ trait Compiler
     def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
     def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
     def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkFlags : Seq[String], linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
+    
+    
+    protected def reportFileGenerated( log : Logger, genFile : File, quiet : Boolean )
+    {
+        if ( !quiet ) log.success( genFile.toString )
+    }
+    
+    case class ProcessResult( val retCode : Int, val stdout : String, val stderr : String )
+    
+    protected def runProcess( log : Logger, cmd : Seq[String], cwd : File, env : Seq[(String, String)], quiet : Boolean ) =
+    {
+        val pl = new ProcessOutputToString()
+        
+        log.debug( "Executing: " + cmd.mkString(" ") )
+        val res = Process( cmd, cwd, env : _* ) ! pl
+        
+        if ( res != 0 )
+        {
+            if ( quiet )
+            {
+                pl.stderr.foreach( ll => log.debug(ll) )
+            }
+            else
+            {
+                pl.stderr.foreach( ll => log.error(ll) )
+            }
+            
+            throw new java.lang.RuntimeException( "Non-zero exit code: " + res )
+        }
+        
+        new ProcessResult(res, pl.stdout.mkString("\n"), pl.stderr.mkString("\n"))
+    }
 }
 
 /**
