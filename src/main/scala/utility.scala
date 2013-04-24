@@ -11,9 +11,14 @@ import scala.collection.{mutable, immutable}
   */
 class FunctionWithResultPath( val resultPath : File, val fn : () => File )
 {
+    import java.security.MessageDigest
+
+    private def md5(s: String) = MessageDigest.getInstance("MD5").digest(s.getBytes)
+
     def apply() = fn()
     def runIfNotCached( stateCacheDir : File, inputDeps : Seq[File] ) =
     {
+        val resultPathHash = md5(resultPath.toString)
         val lazyBuild = FileFunction.cached( stateCacheDir / resultPath.toString , FilesInfo.lastModified, FilesInfo.exists ) 
         { _ =>
             Set( fn() )
