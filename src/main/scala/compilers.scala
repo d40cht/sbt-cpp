@@ -156,7 +156,7 @@ case class VSCompiler(
         val buildCmd = Seq[String]( compilerExe.toString, "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compileDefaultFlags ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ (defaultIncludePaths ++ systemIncludePaths).flatMap( ip => Seq("/I", ip.toString) )
 
         log.debug( "Executing: " + buildCmd.mkString(" ") )
-
+  
         Process( buildCmd, buildDirectory, "PATH" -> toolPaths.mkString(";") ) !!
 
         reportFileGenerated( log, outputFile, quiet )
