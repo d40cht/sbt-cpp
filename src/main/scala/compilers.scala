@@ -15,8 +15,8 @@ case class GccCompiler(
     val compilerExe : File,
     val archiverExe : File,
     val linkerExe : File,
-    val compileDefaultFlags : Seq[String] = Seq(),
-    val linkDefaultFlags : Seq[String] = Seq() ) extends Compiler
+    override val compileDefaultFlags : Seq[String] = Seq(),
+    override val linkDefaultFlags : Seq[String] = Seq() ) extends Compiler
 {
     private def reportFileGenerated( log : Logger, genFile : File, quiet : Boolean )
     {
@@ -52,7 +52,7 @@ case class GccCompiler(
     def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
     
-        val depCmd = Seq[String]( compilerExe.toString, "-M", sourceFile.toString ) ++ compileDefaultFlags ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ (defaultIncludePaths ++ systemIncludePaths).map( ip => "-isystem" + ip.toString )
+        val depCmd = Seq[String]( compilerExe.toString, "-M", sourceFile.toString ) ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ systemIncludePaths.map( ip => "-isystem" + ip.toString )
         
         val depResult = runProcess( log, depCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
         
@@ -70,7 +70,7 @@ case class GccCompiler(
     def compileToObjectFile( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
     { outputFile =>
     
-        val buildCmd = Seq[String]( compilerExe.toString, "-fPIC", "-c", "-o", outputFile.toString, sourceFile.toString ) ++ compileDefaultFlags ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ (defaultIncludePaths ++ systemIncludePaths).map( ip => "-isystem" + ip.toString )
+        val buildCmd = Seq[String]( compilerExe.toString, "-fPIC", "-c", "-o", outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ systemIncludePaths.map( ip => "-isystem" + ip.toString )
 
         runProcess( log, buildCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
         
@@ -99,10 +99,10 @@ case class GccCompiler(
             reportFileGenerated( log, outputFile, quiet )
         }
         
-    def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean ) =
+    def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkFlags : Seq[String], linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / exeName )
         { outputFile =>
-            val linkCmd = Seq[String]( linkerExe.toString, "-o" + outputFile.toString ) ++ linkDefaultFlags ++ inputFiles.map( _.toString ) ++ linkPaths.map( lp => "-L" + lp ) ++ linkLibraries.map( ll => "-l" + ll )
+            val linkCmd = Seq[String]( linkerExe.toString, "-o" + outputFile.toString ) ++ linkFlags ++ inputFiles.map( _.toString ) ++ linkPaths.map( lp => "-L" + lp ) ++ linkLibraries.map( ll => "-l" + ll )
             
             runProcess( log, linkCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
             
@@ -120,8 +120,8 @@ case class VSCompiler(
     val compilerExe : File,
     val archiverExe : File,
     val linkerExe : File,
-    val compileDefaultFlags : Seq[String] = Seq(),
-    val linkDefaultFlags : Seq[String] = Seq() ) extends Compiler
+    override val compileDefaultFlags : Seq[String] = Seq(),
+    override val linkDefaultFlags : Seq[String] = Seq() ) extends Compiler
 {
     private def reportFileGenerated( log : Logger, genFile : File, quiet : Boolean )
     {
@@ -184,7 +184,7 @@ case class VSCompiler(
             reportFileGenerated( log, outputFile, quiet )
         }
 
-    def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean ) =
+    def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkFlags : Seq[String], linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / exeName )
         { outputFile =>
             val linkCmd = Seq[String]( linkerExe.toString, "-o" + outputFile.toString ) ++ linkDefaultFlags ++ inputFiles.map( _.toString ) ++ linkPaths.map( lp => "-L" + lp ) ++ linkLibraries.map( ll => "-l" + ll )

@@ -17,11 +17,13 @@ trait Compiler
     def toolPaths : Seq[File]
     def defaultLibraryPaths : Seq[File]
     def defaultIncludePaths : Seq[File]
+    def compileDefaultFlags : Seq[String]
+    def linkDefaultFlags : Seq[String]
     def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean = false ) : FunctionWithResultPath
     def compileToObjectFile( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean = false ) : FunctionWithResultPath
     def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
     def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
-    def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
+    def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkFlags : Seq[String], linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
 }
 
 /**
@@ -171,7 +173,8 @@ abstract class NativeBuild extends Build
     val runEnvironmentVariables = TaskKey[Seq[(String, String)]]("native-run-env-vars", "Environment variables to be set for test runs")
     val testEnvironmentVariables = TaskKey[Seq[(String, String)]]("native-test-env-vars", "Environment variables to be set for test runs")
     val cleanAll = TaskKey[Unit]("native-clean-all", "Clean the entire build directory")
-    val cppCompileFlags = TaskKey[Seq[String]]("native-cpp-compile-flags", "C++ compile flags")
+    val compileFlags = TaskKey[Seq[String]]("native-compile-flags", "Native compile flags")
+    val linkFlags = TaskKey[Seq[String]]("native-link-flags", "Native link flags")
     
 
     type Sett = Project.Setting[_]
@@ -204,7 +207,7 @@ abstract class NativeBuild extends Build
         state.copy( attributes=updatedAttributes )
     }
     
-    class NativeProject( val p : Project, val subProjectBuilders : SubProjectBuilders )
+    case class NativeProject( val p : Project, val subProjectBuilders : SubProjectBuilders, val dependencies : Seq[ProjectReference] )
     {
         def nativeDependsOn( others : ProjectReference* ) : NativeProject =
         {
@@ -216,7 +219,7 @@ abstract class NativeBuild extends Build
                     compile             <<=  compile.dependsOn(exportedLibs in other) )
             }
             
-            new NativeProject( newP, subProjectBuilders )
+            new NativeProject( newP, subProjectBuilders, dependencies ++ others )
         }
         
         def nativeSystemDependsOn( others : ProjectReference* ) : NativeProject =
@@ -229,8 +232,10 @@ abstract class NativeBuild extends Build
                     compile                     <<=  compile.dependsOn(exportedLibs in other) )
             }
             
-            new NativeProject( newP, subProjectBuilders )
+            new NativeProject( newP, subProjectBuilders, dependencies ++ others )
         }
+        
+        //def addSubProject( spb : Project => Project ) = new NativeProject( p, spb +: subProjectBuilders )
     }
     
     implicit def toProject( rnp : NativeProject ) = rnp.p
@@ -241,20 +246,20 @@ abstract class NativeBuild extends Build
     {
         // A selection of useful default settings from the standard sbt config
         lazy val relevantSbtDefaultSettings = Seq[Sett](
-            watchTransitiveSources  <<= Defaults.watchTransitiveSourcesTask,                
-            watch                   <<= Defaults.watchSetting
+            watchTransitiveSources          <<= Defaults.watchTransitiveSourcesTask,                
+            watch                           <<= Defaults.watchSetting
         )
         
         def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]], subProjectBuilders : SubProjectBuilders = Seq() ) =
         {
             val defaultSettings = relevantSbtDefaultSettings ++ Seq(
-                name                := _name,
+                name                        := _name,
                 
-                projectDirectory    <<= baseDirectory map { bd => (bd / _projectDirectory.toString) },
+                projectDirectory            <<= baseDirectory map { bd => (bd / _projectDirectory.toString) },
             
-                commands            ++= (BasicCommands.allBasicCommands :+ setBuildConfigCommand),
+                commands                    ++= (BasicCommands.allBasicCommands :+ setBuildConfigCommand),
                 
-                buildEnvironment    <<= state map
+                buildEnvironment            <<= state map
                 { s =>
                     val beo = s.attributes.get( envKey )
                     
@@ -263,20 +268,20 @@ abstract class NativeBuild extends Build
                     beo.get
                 },
                 
-                //target              <<= baseDirectory { _ / "target" / "native" },
-                target              := buildRootDirectory,
+                //target                    <<= baseDirectory { _ / "target" / "native" },
+                target                      := buildRootDirectory,
                 
-                historyPath         <<= target { t => Some(t / ".history") },
+                historyPath                 <<= target { t => Some(t / ".history") },
                 
-                rootBuildDirectory  <<= (target, buildEnvironment) map { case (td, be) => be.conf.targetDirectory(td) },
+                rootBuildDirectory          <<= (target, buildEnvironment) map { case (td, be) => be.conf.targetDirectory(td) },
                 
-                clean               <<= (rootBuildDirectory) map { rbd => IO.delete(rbd) },
+                clean                       <<= (rootBuildDirectory) map { rbd => IO.delete(rbd) },
                 
-                cleanAll            <<= (target) map { td => IO.delete(td) },
+                cleanAll                    <<= (target) map { td => IO.delete(td) },
                 
-                compiler            <<= (buildEnvironment) map { _.compiler },
+                compiler                    <<= (buildEnvironment) map { _.compiler },
                 
-                projectBuildDirectory <<= (rootBuildDirectory, name) map
+                projectBuildDirectory       <<= (rootBuildDirectory, name) map
                 { case (rbd, n) =>
                 
                     val dir = rbd / n
@@ -286,23 +291,25 @@ abstract class NativeBuild extends Build
                     dir
                 },
                 
-                stateCacheDirectory <<= (projectBuildDirectory) map { _ / "state-cache"  },
+                stateCacheDirectory         <<= (projectBuildDirectory) map { _ / "state-cache"  },
                 
-                includeDirectories  <<= (projectDirectory) map { pd => Seq(pd / "interface", pd / "include") },
+                includeDirectories          <<= (projectDirectory) map { pd => Seq(pd / "interface", pd / "include") },
                 
-                systemIncludeDirectories := Seq(),
+                systemIncludeDirectories    <<= (compiler) map { _.defaultIncludePaths },
                 
-                linkDirectories     :=  Seq(),
+                linkDirectories             <<= (compiler) map { _.defaultLibraryPaths },
                 
-                nativeLibraries     <<= (projectBuildDirectory) map { _ => Seq() },
+                nativeLibraries             <<= (projectBuildDirectory) map { _ => Seq() },
                 
-                sourceDirectories   <<= (projectDirectory) map { pd => Seq(pd / "source") },
+                sourceDirectories           <<= (projectDirectory) map { pd => Seq(pd / "source") },
                 
-                sourceFiles         <<= (sourceDirectories) map { _.flatMap { sd => ((sd * "*.cpp").get ++ (sd * "*.c").get) } },
+                sourceFiles                 <<= (sourceDirectories) map { _.flatMap { sd => ((sd * "*.cpp").get ++ (sd * "*.c").get) } },
                 
-                cppCompileFlags     := Seq(),
+                compileFlags                <<= (compiler) map { _.compileDefaultFlags },
                 
-                sourceFilesWithDeps <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFiles, cppCompileFlags, streams) flatMap
+                linkFlags                   <<= (compiler) map { _.linkDefaultFlags },
+                
+                sourceFilesWithDeps         <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFiles, compileFlags, streams) flatMap
                 {
                     case (c, bd, scd, ids, sids, sfs, cfs, s) =>
                     
@@ -319,13 +326,13 @@ abstract class NativeBuild extends Build
                     sfs.map( sf => toTask( () => (sf, findDependencies(sf)) ) ).join
                 },
                 
-                runEnvironmentVariables    := Seq(),
+                runEnvironmentVariables     := Seq(),
                 
                 testEnvironmentVariables    := Seq(),
                 
-                watchSources        <++= (sourceFilesWithDeps) map { sfd => sfd.toList.flatMap { case (sf, deps) => (sf +: deps.toList) } },
+                watchSources                <++= (sourceFilesWithDeps) map { sfd => sfd.toList.flatMap { case (sf, deps) => (sf +: deps.toList) } },
                 
-                objectFiles         <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFilesWithDeps, cppCompileFlags, streams) flatMap {
+                objectFiles                 <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFilesWithDeps, compileFlags, streams) flatMap {
                     
                     case (c, bd, scd, ids, sids, sfwdeps, cfs, s) =>
                     
@@ -341,15 +348,16 @@ abstract class NativeBuild extends Build
                 
                 nativeTest                  :=  None,
                 test                        :=  Unit,
-                exportedLibs                <<= (streams, name) map { case (s, n) => /*s.log.warn( "No libraries exported by this project (%s)".format(n) );*/ Seq() },
-                exportedLibDirectories      <<= (streams, name) map { case (s, n) => /*s.log.warn( "No library paths exported by this project (%s)".format(n) );*/ Seq() },
-                exportedIncludeDirectories  <<= (streams, name) map { case (s, n) => /*s.log.warn( "No include directories exported by this project (%s)".format(n) );*/ Seq() },
-                nativeExe                   <<= (streams, name) map { case (s, n) => /*s.log.warn( "No executable built by this project (%s)".format(n) );*/ file("") }
+                
+                exportedLibs                := Seq(),
+                exportedLibDirectories      := Seq(),
+                exportedIncludeDirectories  := Seq(),
+                nativeExe                   := file("")
             )
             
-            val p = Project( id=_name, base=file("./"), settings=defaultSettings ++ _settings )
+            val p = Project( id=_name, base=_projectDirectory, settings=defaultSettings ++ _settings )
             
-            new NativeProject(p, subProjectBuilders)
+            new NativeProject(p, subProjectBuilders, Seq())
         }
     }
 
@@ -421,14 +429,14 @@ abstract class NativeBuild extends Build
         def apply( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]] ) =
         {
             val defaultSettings = Seq(
-                nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkDirectories, nativeLibraries, streams) map
-                { case (c, projName, bd, scd, ofs, lds, nls, s) =>
+                nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
+                { case (c, projName, bd, scd, ofs, lfs, lds, nls, s) =>
                 
-                    val blf = c.buildExecutable( s.log, bd, projName, lds, nls, ofs )
+                    val blf = c.buildExecutable( s.log, bd, projName, lfs, lds, nls, ofs )
                     
                     blf.runIfNotCached( scd, ofs )
                 },
-                (compile in Test) <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
+                compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
                 nativeTest <<= (nativeExe, testEnvironmentVariables, stateCacheDirectory, streams) map
                 { case (ncExe, tenvs, scd, s) =>
 
@@ -459,10 +467,10 @@ abstract class NativeBuild extends Build
         def apply( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]] ) =
         {
             val defaultSettings = Seq(
-                nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkDirectories, nativeLibraries, streams) map
-                { case (c, projName, bd, scd, ofs, lds, nls, s) =>
+                nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
+                { case (c, projName, bd, scd, ofs, lfs, lds, nls, s) =>
                 
-                    val blf = c.buildExecutable( s.log, bd, projName, lds, nls, ofs )
+                    val blf = c.buildExecutable( s.log, bd, projName, lfs, lds, nls, ofs )
                     
                     blf.runIfNotCached( scd, ofs )
                 },

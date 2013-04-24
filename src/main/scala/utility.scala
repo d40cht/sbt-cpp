@@ -81,4 +81,35 @@ object ProcessUtil
     }
 }
 
+class HeaderConfigFile( private val fileName : File )
+{
+    private val defs = mutable.ArrayBuffer[(String, String)]()
+    
+    def addDefinition( name : String ) = defs.append( (name, "") )
+    def addDefinition( name : String, value : String ) = defs.append( (name, value) )
+    
+    def write() =
+    {
+        IO.write( fileName, defs.map { case (k, v) => "#define %s %s".format(k, v) }.mkString("\n") )
+    }
+}
+
+object HeaderConfigFile
+{
+    def apply( log : Logger, compiler : Compiler, fileName : File )( fn : HeaderConfigFile => Unit ) =
+    {
+        FunctionWithResultPath( fileName )
+        { _ =>
+            val hcf = new HeaderConfigFile( fileName )
+            
+            fn( hcf )
+            
+            
+            
+            hcf.write()
+            
+            fileName
+        }()
+    }
+}
 

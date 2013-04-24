@@ -7,37 +7,7 @@ import org.seacourt.build.NativeDefaultBuild._
 
 import scala.collection.{mutable, immutable}
 
-class HeaderConfigFile( private val fileName : File )
-{
-    private val defs = mutable.ArrayBuffer[(String, String)]()
-    
-    def addDefinition( name : String ) = defs.append( (name, "") )
-    def addDefinition( name : String, value : String ) = defs.append( (name, value) )
-    
-    def write() =
-    {
-        IO.write( fileName, defs.map { case (k, v) => "#define %s %s".format(k, v) }.mkString("\n") )
-    }
-}
 
-object HeaderConfigFile
-{
-    def apply( log : Logger, compiler : Compiler, fileName : File )( fn : HeaderConfigFile => Unit ) =
-    {
-        FunctionWithResultPath( fileName )
-        { _ =>
-            val hcf = new HeaderConfigFile( fileName )
-            
-            fn( hcf )
-            
-            
-            
-            hcf.write()
-            
-            fileName
-        }()
-    }
-}
 
 
 object TestBuild extends NativeDefaultBuild
@@ -51,21 +21,22 @@ object TestBuild extends NativeDefaultBuild
         testCXXCompiler( log, env.compiler )
         
         // Check for a few expected headers and type sizes
-        requireHeader( log, env.compiler, "stdio.h" )
-        requireHeader( log, env.compiler, "iostream" )
+        requireHeader( log, env.compiler, "test.c", "stdio.h" )
+        requireHeader( log, env.compiler, "test.cpp", "iostream" )
+        assert( !testForHeader( log, env.compiler, "test.c", "iostream" ) )
         
-        requireSymbol( log, env.compiler, "printf", Seq("stdio.h") )
-        requireSymbol( log, env.compiler, "std::cout", Seq("iostream") )
+        requireSymbol( log, env.compiler, "test.c", "printf", Seq("stdio.h") )
+        requireSymbol( log, env.compiler, "test.cpp", "std::cout", Seq("iostream") )
         
-        requireTypeSize( log, env.compiler, "int32_t", 4, Seq("stdint.h") )
-        requireTypeSize( log, env.compiler, "int64_t", 8, Seq("stdint.h") )
+        requireTypeSize( log, env.compiler, "test.c", "int32_t", 4, Seq("stdint.h") )
+        requireTypeSize( log, env.compiler, "test.c", "int64_t", 8, Seq("stdint.h") )
         
         // Check that a few things that shouldn't exist don't exist
-        assert( !testForHeader( log, env.compiler, "boggletoop" ) )
-        assert( !testForSymbolDeclaration( log, env.compiler, "toffeecake", Seq("stdio.h") ) )
+        assert( !testForHeader( log, env.compiler, "test.c", "boggletoop" ) )
+        assert( !testForSymbolDeclaration( log, env.compiler, "test.c", "toffeecake", Seq("stdio.h") ) )
         
-        assert( !testForTypeSize( log, env.compiler, "int32_t", 3, Seq("stdint.h") ) )
-        assert( !testForTypeSize( log, env.compiler, "int32_t", 5, Seq("stdint.h") ) )
+        assert( !testForTypeSize( log, env.compiler, "test.cpp", "int32_t", 3, Seq("stdint.h") ) )
+        assert( !testForTypeSize( log, env.compiler, "test.cpp", "int32_t", 5, Seq("stdint.h") ) )
     }
     
     lazy val config = NativeProject( "config", file("."), Seq(
@@ -77,11 +48,11 @@ object TestBuild extends NativeDefaultBuild
             HeaderConfigFile( s.log, c, platformConfigFile )
             { hcf =>
             
-                hcf.addDefinition( "HAS_ZLIB_H",        PlatformChecks.testForHeader( s.log, c, "zlib.h" ).toString )
-                hcf.addDefinition( "HAS_MALLOC_H",      PlatformChecks.testForHeader( s.log, c, "malloc.h" ).toString )
-                hcf.addDefinition( "INT_8_BITS",        PlatformChecks.testForTypeSize( s.log, c, "int", 1 ).toString )
-                hcf.addDefinition( "INT_32_BITS",       PlatformChecks.testForTypeSize( s.log, c, "int", 4 ).toString )
-                hcf.addDefinition( "LONG_LONG_64_BITS", PlatformChecks.testForTypeSize( s.log, c, "long long", 8 ).toString )
+                hcf.addDefinition( "HAS_ZLIB_H",        PlatformChecks.testForHeader( s.log, c, "test.c", "zlib.h" ).toString )
+                hcf.addDefinition( "HAS_MALLOC_H",      PlatformChecks.testForHeader( s.log, c, "test.c", "malloc.h" ).toString )
+                hcf.addDefinition( "INT_8_BITS",        PlatformChecks.testForTypeSize( s.log, c, "test.c", "int", 1 ).toString )
+                hcf.addDefinition( "INT_32_BITS",       PlatformChecks.testForTypeSize( s.log, c, "test.c", "int", 4 ).toString )
+                hcf.addDefinition( "LONG_LONG_64_BITS", PlatformChecks.testForTypeSize( s.log, c, "test.c", "long long", 8 ).toString )
             }
         
             platformHeaderDir
@@ -97,13 +68,16 @@ object TestBuild extends NativeDefaultBuild
             sbt.inc.Analysis.Empty
         } ) )
         
+    lazy val cproject = StaticLibrary( "cproject", file( "cproject" ), Seq(
+        compileFlags := Seq( "-x", "c", "-std=c99" )
+    ) )
     
     lazy val library1 = StaticLibrary( "library1", file( "library1" ), Seq() )
         .nativeDependsOn( checkLib )
         
     lazy val library2 = SharedLibrary( "library2", file( "library2" ),
         Seq(
-            cppCompileFlags <++= (buildEnvironment) map
+            compileFlags <++= (buildEnvironment) map
             { be =>
                 
                 be.conf.debugOptLevel match
@@ -113,7 +87,7 @@ object TestBuild extends NativeDefaultBuild
                 }
             },
             
-            cppCompileFlags <++= (buildEnvironment) map
+            compileFlags <++= (buildEnvironment) map
             { be =>
                 
                 be.conf.compiler match
@@ -124,7 +98,7 @@ object TestBuild extends NativeDefaultBuild
                 }
             },
             
-            cppCompileFlags <++= (buildEnvironment) map
+            compileFlags <++= (buildEnvironment) map
             { be =>
                 
                 be.conf.targetPlatform match
