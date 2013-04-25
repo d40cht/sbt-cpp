@@ -97,7 +97,7 @@ case class VSCompiler(
     def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
 
-        val depCmd = Seq[String]( compilerExe.toString, "/showIncludes", sourceFile.toString ) ++ compileDefaultFlags ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString ) ) ++ (defaultIncludePaths ++ systemIncludePaths).flatMap( ip => Seq("/I", ip.toString) )
+        val depCmd = Seq[String]( compilerExe.toString, "/showIncludes", sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString ) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
         val depResult = runProcess( log, depCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
 
         // Strip off any trailing backslash characters from the output
@@ -115,7 +115,7 @@ case class VSCompiler(
     def compileToObjectFile( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
     { outputFile =>
 
-        val buildCmd = Seq[String]( compilerExe.toString, "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compileDefaultFlags ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ (defaultIncludePaths ++ systemIncludePaths).flatMap( ip => Seq("/I", ip.toString) )
+        val buildCmd = Seq[String]( compilerExe.toString, "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
 
         runProcess( log, buildCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
@@ -147,7 +147,7 @@ case class VSCompiler(
     def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkFlags : Seq[String], linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / exeName )
         { outputFile =>
-            val linkCmd = Seq[String]( linkerExe.toString, "-o" + outputFile.toString ) ++ linkDefaultFlags ++ inputFiles.map( _.toString ) ++ linkPaths.map( lp => "-L" + lp ) ++ linkLibraries.map( ll => "-l" + ll )
+            val linkCmd = Seq[String]( linkerExe.toString, "/OUT:" + outputFile.toString ) ++ inputFiles.map( _.toString ) ++ linkPaths.map( lp => "/LIBPATH:" + lp ) ++ linkLibraries.map( ll => "-l" + ll )
 
             runProcess( log, linkCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
 

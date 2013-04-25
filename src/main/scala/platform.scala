@@ -49,13 +49,13 @@ object PlatformChecks
 
             try
             {
-                val objFile = compiler.compileToObjectFile( log, td, includePaths, Seq(), testFile, Seq(), quiet=true )()
+                val objFile = compiler.compileToObjectFile( log, td, compiler.defaultIncludePaths ++ includePaths, Seq(), testFile, Seq(), quiet=true )()
                 
                 if ( andLink )
                 {
                     compiler.buildExecutable( log, td, outputName,
                         linkFlags=Seq(),
-                        linkPaths=linkPaths,
+                        linkPaths=compiler.defaultLibraryPaths ++ linkPaths,
                         linkLibraries=linkLibraries,
                         inputFiles=Seq(objFile), quiet=true )()
                 }
