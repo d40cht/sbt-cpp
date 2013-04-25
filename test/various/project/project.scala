@@ -19,6 +19,15 @@ object TestBuild extends NativeDefaultBuild
         // Require a working c and cxx compiler
         testCCompiler( log, env.compiler )
         testCXXCompiler( log, env.compiler )
+        testHeaderParse( log, env.compiler )
+
+        assert( tryCompileAndLink( log, env.compiler, """
+            |#include <zlib.h>
+            |
+            |int main(int argc, char** argv)
+            |{
+            |    void* ptr = (void*) &gzread;
+            |}""".stripMargin, "test.cpp", linkLibraries=Seq("z") ) )
         
         // Check for a few expected headers and type sizes
         requireHeader( log, env.compiler, "test.c", "stdio.h" )
