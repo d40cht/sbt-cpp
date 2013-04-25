@@ -13,13 +13,14 @@ class FunctionWithResultPath( val resultPath : File, val fn : () => File )
 {
     import java.security.MessageDigest
 
-    private def md5(s: String) = MessageDigest.getInstance("MD5").digest(s.getBytes)
+    private def md5(s: String) = MessageDigest.getInstance("MD5").digest(s.getBytes).map( "%02X" format _ ).mkString
 
     def apply() = fn()
     def runIfNotCached( stateCacheDir : File, inputDeps : Seq[File] ) =
     {
         val resultPathHash = md5(resultPath.toString)
-        val lazyBuild = FileFunction.cached( stateCacheDir / resultPath.toString , FilesInfo.lastModified, FilesInfo.exists ) 
+        println( "Hash: " + resultPathHash + " - " + resultPath.toString )
+        val lazyBuild = FileFunction.cached( stateCacheDir / resultPathHash , FilesInfo.lastModified, FilesInfo.exists ) 
         { _ =>
             Set( fn() )
         }

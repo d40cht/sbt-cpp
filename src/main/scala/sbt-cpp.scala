@@ -40,6 +40,8 @@ trait Compiler
         log.debug( "Executing: " + cmd.mkString(" ") )
         val res = Process( cmd, cwd, env : _* ) ! pl
         
+        //pl.stdout.foreach( ll => println( "O: " + ll ) )
+        //pl.stderr.foreach( ll => println( "E: " + ll ) )
         if ( res != 0 )
         {
             if ( quiet )
@@ -373,7 +375,8 @@ abstract class NativeBuild extends Build
                         case (sourceFile, dependencies) =>
                     
                         val blf = c.compileToObjectFile( s.log, bd, ids, sids, sourceFile, cfs )
-                        
+                                
+                        println( sourceFile )
                         toTask( () => blf.runIfNotCached( scd, dependencies ) )
                     }.join
                 },

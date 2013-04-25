@@ -97,8 +97,8 @@ case class VSCompiler(
     def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
 
-        val depCmd = Seq[String]( compilerExe.toString, "/showIncludes", sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString ) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
-        val depResult = runProcess( log, depCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
+        val depCmd = Seq[String]( compilerExe.toString, "/c", "/showIncludes", sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString ) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
+        val depResult = runProcess( log, depCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
         // Strip off any trailing backslash characters from the output
         val prefix = "Note: including file:"
@@ -126,7 +126,7 @@ case class VSCompiler(
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".a") )
         { outputFile =>
 
-            val arCmd = Seq[String]( archiverExe.toString, "-c", "-r", outputFile.toString ) ++ objectFiles.map( _.toString )
+            val arCmd = Seq[String]( archiverExe.toString, "/OUT:" + outputFile.toString ) ++ objectFiles.map( _.toString )
             
             runProcess( log, arCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
@@ -137,9 +137,9 @@ case class VSCompiler(
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
         { outputFile =>
 
-            val cmd = Seq[String]( compilerExe.toString, "-shared", "-o", outputFile.toString ) ++ objectFiles.map( _.toString )
+            val cmd = Seq[String]( compilerExe.toString, "/DLL", "/OUT:" + outputFile.toString ) ++ objectFiles.map( _.toString )
 
-            runProcess( log, cmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
+            runProcess( log, cmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
             reportFileGenerated( log, outputFile, quiet )
         }
@@ -149,7 +149,7 @@ case class VSCompiler(
         { outputFile =>
             val linkCmd = Seq[String]( linkerExe.toString, "/OUT:" + outputFile.toString ) ++ inputFiles.map( _.toString ) ++ linkPaths.map( lp => "/LIBPATH:" + lp ) ++ linkLibraries.map( ll => "-l" + ll )
 
-            runProcess( log, linkCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
+            runProcess( log, linkCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
             reportFileGenerated( log, outputFile, quiet )
         }
