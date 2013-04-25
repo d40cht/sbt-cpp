@@ -108,9 +108,9 @@ object TestBuild extends NativeDefaultBuild
                 
                 be.conf.compiler match
                 {
-                    case Gcc        => Seq("-DCOMPILER=\"GnueyGoodness\"")
-                    case Clang      => Seq("-DCOMPILER=\"AppleTart\"")
-                    case VSCl       => Seq("-DCOMPILER=\"MircoCroft\"")
+                    case Gcc        => Seq("-DCOMPILER=GnueyGoodness")
+                    case Clang      => Seq("-DCOMPILER=AppleTart")
+                    case VSCl       => Seq("-DCOMPILER=MircoCroft")
                 }
             },
             
@@ -119,8 +119,8 @@ object TestBuild extends NativeDefaultBuild
                 
                 be.conf.targetPlatform match
                 {
-                    case LinuxPC    => Seq("-DTARGET_PLATFORM=\"x86LinusLand\"")
-                    case WindowsPC  => Seq("-DTARGET_PLATFORM=\"x86PointyClicky\"")
+                    case LinuxPC    => Seq("-DTARGET_PLATFORM=x86LinusLand")
+                    case WindowsPC  => Seq("-DTARGET_PLATFORM=x86PointyClicky")
                 }
             }
         ) )
