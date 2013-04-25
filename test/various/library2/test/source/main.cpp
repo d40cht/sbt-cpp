@@ -29,10 +29,17 @@ int main( int /*argc*/, char** /*argv*/ )
     
 #ifdef CLANG
     CHECK_EQUAL( compiler(), "AppleTart" );
-#else
+#elif defined(GCC)
     CHECK_EQUAL( compiler(), "GnueyGoodness" );
+#else
+    CHECK_EQUAL( compiler(), "MircoCroft" );
 #endif
+
+#ifdef WINDOWS
+    CHECK_EQUAL( targetPlatform(), "x86PointyClicky" );
+#else
     CHECK_EQUAL( targetPlatform(), "x86LinusLand" );
+#endif
     
     return 0;
 }

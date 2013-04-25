@@ -35,22 +35,20 @@ trait Compiler
     
     protected def runProcess( log : Logger, cmd : Seq[String], cwd : File, env : Seq[(String, String)], quiet : Boolean ) =
     {
-        val pl = new ProcessOutputToString()
+        val pl = new ProcessOutputToString(true)
         
         log.debug( "Executing: " + cmd.mkString(" ") )
         val res = Process( cmd, cwd, env : _* ) ! pl
         
-        //pl.stdout.foreach( ll => println( "O: " + ll ) )
-        //pl.stderr.foreach( ll => println( "E: " + ll ) )
         if ( res != 0 )
         {
             if ( quiet )
             {
-                pl.stderr.foreach( ll => log.debug(ll) )
+                pl.stdout.foreach( ll => log.debug(ll) )
             }
             else
             {
-                pl.stderr.foreach( ll => log.error(ll) )
+                pl.stdout.foreach( ll => log.error(ll) )
             }
             
             throw new java.lang.RuntimeException( "Non-zero exit code: " + res )
@@ -376,8 +374,8 @@ abstract class NativeBuild extends Build
                     
                         val blf = c.compileToObjectFile( s.log, bd, ids, sids, sourceFile, cfs )
                                 
-                        println( sourceFile )
-                        toTask( () => blf.runIfNotCached( scd, dependencies ) )
+                        //println( sourceFile )
+                        toTask( () => blf.runIfNotCached( scd, sourceFile +: dependencies ) )
                     }.join
                 },
                 

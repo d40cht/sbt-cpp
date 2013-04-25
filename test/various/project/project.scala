@@ -21,13 +21,13 @@ object TestBuild extends NativeDefaultBuild
         testCXXCompiler( log, env.compiler )
         testHeaderParse( log, env.compiler )
 
-        assert( tryCompileAndLink( log, env.compiler, """
+        /*assert( tryCompileAndLink( log, env.compiler, """
             |#include <zlib.h>
             |
             |int main(int argc, char** argv)
             |{
             |    void* ptr = (void*) &gzread;
-            |}""".stripMargin, "test.cpp", linkLibraries=Seq("z") ) )
+            |}""".stripMargin, "test.cpp", linkLibraries=Seq("z") ) )*/
         
         // Check for a few expected headers and type sizes
         requireHeader( log, env.compiler, "test.c", "stdio.h" )
@@ -78,21 +78,28 @@ object TestBuild extends NativeDefaultBuild
         } ) )
         
     lazy val cproject = StaticLibrary( "cproject", file( "cproject" ), Seq(
-        compileFlags := Seq( "-x", "c", "-std=c99" )
+        compileFlags <<= (buildEnvironment, compileFlags) map
+        { case (be, cf) =>
+            be.conf.compiler match
+            {
+                case Gcc | Clang    => Seq( "-x", "c", "-std=c99" )
+                case VSCl           => Seq()
+            }
+	}
     ) )
     
     lazy val library1 = StaticLibrary( "library1", file( "library1" ), Seq() )
         .nativeDependsOn( checkLib )
         
-    lazy val library2 = SharedLibrary( "library2", file( "library2" ),
+    lazy val library2 = StaticLibrary( "library2", file( "library2" ),
         Seq(
             compileFlags <++= (buildEnvironment) map
             { be =>
                 
                 be.conf.debugOptLevel match
                 {
-                    case Debug      => Seq("-D", "THING=1")
-                    case Release    => Seq("-D", "THING=2")
+                    case Debug      => Seq("-DTHING=1")
+                    case Release    => Seq("-DTHING=2")
                 }
             },
             
@@ -101,9 +108,9 @@ object TestBuild extends NativeDefaultBuild
                 
                 be.conf.compiler match
                 {
-                    case Gcc        => Seq("-D", "COMPILER=\"GnueyGoodness\"")
-                    case Clang      => Seq("-D", "COMPILER=\"AppleTart\"")
-                    case VSCl       => Seq("-D", "COMPILER=\"MircoCroft\"")
+                    case Gcc        => Seq("-DCOMPILER=\"GnueyGoodness\"")
+                    case Clang      => Seq("-DCOMPILER=\"AppleTart\"")
+                    case VSCl       => Seq("-DCOMPILER=\"MircoCroft\"")
                 }
             },
             
@@ -112,8 +119,8 @@ object TestBuild extends NativeDefaultBuild
                 
                 be.conf.targetPlatform match
                 {
-                    case LinuxPC    => Seq("-D", "TARGET_PLATFORM=\"x86LinusLand\"")
-                    case WindowsPC  => Seq("-D", "TARGET_PLATFORM=\"x86PointyClicky\"")
+                    case LinuxPC    => Seq("-DTARGET_PLATFORM=\"x86LinusLand\"")
+                    case WindowsPC  => Seq("-DTARGET_PLATFORM=\"x86PointyClicky\"")
                 }
             }
         ) )

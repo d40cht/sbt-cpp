@@ -1,6 +1,9 @@
 #include "library2.hpp"
 #include "library1.hpp"
 
+#define STRINGIFY_HELPER(ARG) #ARG
+#define STRINGIFY( ARG ) STRINGIFY_HELPER(ARG)
+
 std::vector<std::string> catVec( const std::vector<std::string>& bippy )
 {
     std::vector<std::string> res;
@@ -14,8 +17,8 @@ std::vector<std::string> catVec( const std::vector<std::string>& bippy )
 
 int conditionalFlagCheck() { return THING; }
 
-std::string compiler() { return COMPILER; }
+std::string compiler() { return STRINGIFY(COMPILER); }
 
-std::string targetPlatform() { return TARGET_PLATFORM; }
+std::string targetPlatform() { return STRINGIFY(TARGET_PLATFORM); }
 
 

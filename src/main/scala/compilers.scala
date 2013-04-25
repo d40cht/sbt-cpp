@@ -112,7 +112,7 @@ case class VSCompiler(
         reportFileGenerated( log, depFile, quiet )
     }
 
-    def compileToObjectFile( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
+    def compileToObjectFile( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".obj") )
     { outputFile =>
 
         val buildCmd = Seq[String]( compilerExe.toString, "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
@@ -123,7 +123,7 @@ case class VSCompiler(
     }
 
     def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean ) =
-        FunctionWithResultPath( buildDirectory / ("lib" + libName + ".a") )
+        FunctionWithResultPath( buildDirectory / (libName + ".lib") )
         { outputFile =>
 
             val arCmd = Seq[String]( archiverExe.toString, "/OUT:" + outputFile.toString ) ++ objectFiles.map( _.toString )

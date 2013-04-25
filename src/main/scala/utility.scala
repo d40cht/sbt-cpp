@@ -19,8 +19,7 @@ class FunctionWithResultPath( val resultPath : File, val fn : () => File )
     def runIfNotCached( stateCacheDir : File, inputDeps : Seq[File] ) =
     {
         val resultPathHash = md5(resultPath.toString)
-        println( "Hash: " + resultPathHash + " - " + resultPath.toString )
-        val lazyBuild = FileFunction.cached( stateCacheDir / resultPathHash , FilesInfo.lastModified, FilesInfo.exists ) 
+        val lazyBuild = FileFunction.cached( stateCacheDir / resultPathHash, FilesInfo.lastModified, FilesInfo.exists ) 
         { _ =>
             Set( fn() )
         }
@@ -38,13 +37,13 @@ object FunctionWithResultPath
     }
 }
 
-class ProcessOutputToString extends ProcessLogger
+class ProcessOutputToString( val mergeToStdout : Boolean = false ) extends ProcessLogger
 {
     val stderr = mutable.ArrayBuffer[String]()
     val stdout = mutable.ArrayBuffer[String]()
     
     override def buffer[T]( f : => T ) = f
-    override def error( s : => String ) = stderr.append(s)
+    override def error( s : => String ) = if (mergeToStdout) stdout.append(s) else stderr.append(s)
     override def info( s : => String )  = stdout.append(s)
 }
 
