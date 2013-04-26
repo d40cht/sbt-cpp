@@ -42,38 +42,58 @@ class NativeDefaultBuild extends NativeBuild
         def pathDirs    = Seq( debugOptLevel.toString, compiler.toString, targetPlatform.toString )
     }
     
+    // TODO: Lots of boiler-plate. Move into the compiler trait
     lazy val gccDefault = new GccCompiler(
-        toolPaths           = conf.getStringList("gcc.toolpaths").map( file ),
-        defaultIncludePaths = conf.getStringList("gcc.includepaths").map( file ),
-        defaultLibraryPaths = conf.getStringList("gcc.librarypaths").map( file ),
-        compilerExe         = file( conf.getString("gcc.compiler") ),
+        toolPaths           = conf.getStringList("gcc.toolPaths").map( file ),
+        defaultIncludePaths = conf.getStringList("gcc.includePaths").map( file ),
+        defaultLibraryPaths = conf.getStringList("gcc.libraryPaths").map( file ),
+        ccExe               = file( conf.getString("gcc.ccExe") ),
+        cxxExe              = file( conf.getString("gcc.cxxExe") ),
         archiverExe         = file( conf.getString("gcc.archiver") ),
         linkerExe           = file( conf.getString("gcc.linker") ) )
         
     lazy val clangDefault = new GccCompiler(
-        toolPaths           = conf.getStringList("clang.toolpaths").map( file ),
-        defaultIncludePaths = conf.getStringList("clang.includepaths").map( file ),
-        defaultLibraryPaths = conf.getStringList("clang.librarypaths").map( file ),
-        compilerExe         = file( conf.getString("clang.compiler") ),
+        toolPaths           = conf.getStringList("clang.toolPaths").map( file ),
+        defaultIncludePaths = conf.getStringList("clang.includePaths").map( file ),
+        defaultLibraryPaths = conf.getStringList("clang.libraryPaths").map( file ),
+        ccExe               = file( conf.getString("clang.ccExe") ),
+        cxxExe              = file( conf.getString("clang.cxxExe") ),
         archiverExe         = file( conf.getString("clang.archiver") ),
         linkerExe           = file( conf.getString("clang.linker") ) )
 
 
     lazy val vsDefault = new VSCompiler(
-        toolPaths           = conf.getStringList("vscl.toolpaths").map( file ),
-        defaultIncludePaths = conf.getStringList("vscl.includepaths").map( file ),
-        defaultLibraryPaths = conf.getStringList("vscl.librarypaths").map( file ),
+        toolPaths           = conf.getStringList("vscl.toolPaths").map( file ),
+        defaultIncludePaths = conf.getStringList("vscl.includePaths").map( file ),
+        defaultLibraryPaths = conf.getStringList("vscl.libraryPaths").map( file ),
         compilerExe         = file( conf.getString("vscl.compiler") ),
         archiverExe         = file( conf.getString("vscl.archiver") ),
         linkerExe           = file( conf.getString("vscl.linker") ) )
 
     override lazy val configurations = Set[Environment](
-        new Environment( new BuildType( Release, Gcc, LinuxPC ), gccDefault.copy( compileDefaultFlags=conf.getStringList("gcc.release.flags") ) ),
-        new Environment( new BuildType( Debug, Gcc, LinuxPC ), gccDefault.copy( compileDefaultFlags=conf.getStringList("gcc.debug.flags") ) ),
-        new Environment( new BuildType( Release, Clang, LinuxPC ), clangDefault.copy( compileDefaultFlags=conf.getStringList("clang.release.flags") ) ),
-        new Environment( new BuildType( Debug, Clang, LinuxPC ), clangDefault.copy( compileDefaultFlags=conf.getStringList("clang.debug.flags") ) ),
-        new Environment( new BuildType( Release, VSCl, WindowsPC ), vsDefault.copy( compileDefaultFlags=conf.getStringList("vscl.release.flags") ) ),
-        new Environment( new BuildType( Debug, VSCl, WindowsPC ), vsDefault.copy( compileDefaultFlags=conf.getStringList("vscl.debug.flags") ) )
+        new Environment( new BuildType( Release, Gcc, LinuxPC ), gccDefault.copy(
+            ccDefaultFlags=conf.getStringList("gcc.release.ccFlags"),
+            cxxDefaultFlags=conf.getStringList("gcc.release.cxxFlags") ) ),
+            
+        new Environment( new BuildType( Debug, Gcc, LinuxPC ), gccDefault.copy(
+            ccDefaultFlags=conf.getStringList("gcc.debug.ccFlags"),
+            cxxDefaultFlags=conf.getStringList("gcc.debug.cxxFlags") ) ),
+            
+        new Environment( new BuildType( Release, Clang, LinuxPC ), clangDefault.copy(
+            ccDefaultFlags=conf.getStringList("clang.release.ccFlags"),
+            cxxDefaultFlags=conf.getStringList("clang.release.cxxFlags") ) ),
+        
+        new Environment( new BuildType( Debug, Clang, LinuxPC ), clangDefault.copy(
+            ccDefaultFlags=conf.getStringList("clang.debug.ccFlags"),
+            cxxDefaultFlags=conf.getStringList("clang.debug.cxxFlags") ) ),
+        
+        new Environment( new BuildType( Release, VSCl, WindowsPC ), vsDefault.copy(
+            ccDefaultFlags=conf.getStringList("vscl.release.ccFlags"),
+            cxxDefaultFlags=conf.getStringList("vscl.release.cxxFlags") ) ),
+        
+        new Environment( new BuildType( Debug, VSCl, WindowsPC ), vsDefault.copy(
+            ccDefaultFlags=conf.getStringList("vscl.debug.ccFlags"),
+            cxxDefaultFlags=conf.getStringList("vscl.debug.cxxFlags") ) )
     )
 }
 

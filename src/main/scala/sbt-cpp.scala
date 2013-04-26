@@ -17,10 +17,15 @@ trait Compiler
     def toolPaths : Seq[File]
     def defaultLibraryPaths : Seq[File]
     def defaultIncludePaths : Seq[File]
-    def compileDefaultFlags : Seq[String]
+    def ccDefaultFlags : Seq[String]
+    def cxxDefaultFlags : Seq[String]
     def linkDefaultFlags : Seq[String]
+    
     def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean = false ) : FunctionWithResultPath
-    def compileToObjectFile( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean = false ) : FunctionWithResultPath
+    
+    def ccCompileToObj( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean = false ) : FunctionWithResultPath
+    def cxxCompileToObj( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean = false ) : FunctionWithResultPath
+
     def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
     def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
     def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkFlags : Seq[String], linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
@@ -53,10 +58,11 @@ trait Compiler
             else
             {
                 pl.stdout.foreach( ll => log.error(ll) )
-                throw new java.lang.RuntimeException( "Non-zero exit code: " + res )
             }
             
         }
+        
+        if ( res != 0 ) throw new java.lang.RuntimeException( "Non-zero exit code: " + res )
         
         new ProcessResult(res, pl.stdout.mkString("\n"), pl.stderr.mkString("\n"))
     }
@@ -103,6 +109,9 @@ abstract class NativeBuild extends Build
     lazy val userConf = ConfigFactory.parseFile( file("user.conf").getAbsoluteFile, parseOptions )
     
     lazy val conf = userConf.withFallback( localConf ).withFallback( defaultConf )
+    
+    lazy val ccFilePattern = Seq("*.c")
+    lazy val cxxFilePattern = Seq("*.cpp", "*.cxx")
     
     lazy val buildRootDirectory = file( conf.getString( "build.rootdirectory" ) ).getAbsoluteFile
     
@@ -198,8 +207,10 @@ abstract class NativeBuild extends Build
     val systemIncludeDirectories = TaskKey[Seq[File]]("native-system-include-dirs", "System include directories")
     val linkDirectories = TaskKey[Seq[File]]("native-link-dirs", "Link directories")
     val nativeLibraries = TaskKey[Seq[String]]("native-libraries", "All native library dependencies for this project")
-    val sourceFiles = TaskKey[Seq[File]]("native-source-files", "All source files for this project")
-    val sourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("source-files-with-deps", "All source files for this project")
+    val ccSourceFiles = TaskKey[Seq[File]]("native-cc-source-files", "All C source files for this project")
+    val cxxSourceFiles = TaskKey[Seq[File]]("native-cxx-source-files", "All C++ source files for this project")
+    val ccSourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("native-cc-source-files-with-deps", "All C source files with dependencies for this project")
+    val cxxSourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("native-cxx-source-files-with-deps", "All C++ source files with dependencies for this project")
     val objectFiles = TaskKey[Seq[File]]("native-object-files", "All object files for this project" )
     val nativeExe = TaskKey[File]("native-exe", "Executable built by this project (if appropriate)" )
     val nativeRun = TaskKey[Unit]("native-run", "Perform a native run of this project" )
@@ -209,7 +220,8 @@ abstract class NativeBuild extends Build
     val runEnvironmentVariables = TaskKey[Seq[(String, String)]]("native-run-env-vars", "Environment variables to be set for test runs")
     val testEnvironmentVariables = TaskKey[Seq[(String, String)]]("native-test-env-vars", "Environment variables to be set for test runs")
     val cleanAll = TaskKey[Unit]("native-clean-all", "Clean the entire build directory")
-    val compileFlags = TaskKey[Seq[String]]("native-compile-flags", "Native compile flags")
+    val ccCompileFlags = TaskKey[Seq[String]]("native-cc-flags", "Native C compile flags")
+    val cxxCompileFlags = TaskKey[Seq[String]]("native-cxx-flags", "Native C++ compile flags")
     val linkFlags = TaskKey[Seq[String]]("native-link-flags", "Native link flags")
     
 
@@ -339,13 +351,40 @@ abstract class NativeBuild extends Build
                 
                 sourceDirectories           <<= (projectDirectory) map { pd => Seq(pd / "source") },
                 
-                sourceFiles                 <<= (sourceDirectories) map { _.flatMap { sd => ((sd * "*.cpp").get ++ (sd * "*.c").get) } },
+                ccSourceFiles               <<= (sourceDirectories) map { _.flatMap
+                { sd =>
+                    ccFilePattern.flatMap( fp => (sd * fp).get )
+                } },
                 
-                compileFlags                <<= (compiler) map { _.compileDefaultFlags },
+                cxxSourceFiles              <<= (sourceDirectories) map { _.flatMap
+                { sd =>
+                    cxxFilePattern.flatMap( fp => (sd * fp).get )
+                } },
+                
+                ccCompileFlags              <<= (compiler) map { _.ccDefaultFlags },
+                
+                cxxCompileFlags             <<= (compiler) map { _.cxxDefaultFlags },
                 
                 linkFlags                   <<= (compiler) map { _.linkDefaultFlags },
                 
-                sourceFilesWithDeps         <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFiles, compileFlags, streams) flatMap
+                ccSourceFilesWithDeps       <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, ccSourceFiles, ccCompileFlags, streams) flatMap
+                {
+                    case (c, bd, scd, ids, sids, sfs, cfs, s) =>
+                    
+                    // Calculate dependencies
+                    def findDependencies( sourceFile : File ) : Seq[File] =
+                    {
+                        val depGen = c.findHeaderDependencies( s.log, bd, ids, sids, sourceFile, cfs, quiet=true )
+                        
+                        depGen.runIfNotCached( scd, Seq(sourceFile) )
+                        
+                        IO.readLines(depGen.resultPath).map( file )
+                    }
+                    
+                    sfs.map( sf => toTask( () => (sf, findDependencies(sf)) ) ).join
+                },
+                
+                cxxSourceFilesWithDeps      <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, cxxSourceFiles, cxxCompileFlags, streams) flatMap
                 {
                     case (c, bd, scd, ids, sids, sfs, cfs, s) =>
                     
@@ -366,21 +405,35 @@ abstract class NativeBuild extends Build
                 
                 testEnvironmentVariables    := Seq(),
                 
-                watchSources                <++= (sourceFilesWithDeps) map { sfd => sfd.toList.flatMap { case (sf, deps) => (sf +: deps.toList) } },
+                watchSources                <++= (ccSourceFilesWithDeps, cxxSourceFilesWithDeps) map
+                { (ccsfd, cxxsfd) =>
                 
-                objectFiles                 <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, sourceFilesWithDeps, compileFlags, streams) flatMap {
+                    (ccsfd ++ cxxsfd).flatMap { case (sf, deps) => (sf +: deps.toList) }.toList.distinct
+                },
+                
+                objectFiles                 <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, ccSourceFilesWithDeps, cxxSourceFilesWithDeps, ccCompileFlags, cxxCompileFlags, streams) flatMap {
                     
-                    case (c, bd, scd, ids, sids, sfwdeps, cfs, s) =>
+                    case (c, bd, scd, ids, sids, ccfs, cxxfs, ccflags, cxxflags, s) =>
                     
-                    sfwdeps.map
+                    val ccTasks = ccfs.map
                     {
                         case (sourceFile, dependencies) =>
                     
-                        val blf = c.compileToObjectFile( s.log, bd, ids, sids, sourceFile, cfs )
+                        val blf = c.ccCompileToObj( s.log, bd, ids, sids, sourceFile, ccflags )
                                 
-                        //println( sourceFile )
                         toTask( () => blf.runIfNotCached( scd, sourceFile +: dependencies ) )
-                    }.join
+                    }
+                    
+                    val cxxTasks = cxxfs.map
+                    {
+                        case (sourceFile, dependencies) =>
+                    
+                        val blf = c.cxxCompileToObj( s.log, bd, ids, sids, sourceFile, cxxflags )
+                                
+                        toTask( () => blf.runIfNotCached( scd, sourceFile +: dependencies ) )
+                    }
+                    
+                    (ccTasks ++ cxxTasks).join
                 },
                 
                 nativeTest                  :=  None,

@@ -12,10 +12,12 @@ case class GccCompiler(
     override val toolPaths : Seq[File],
     override val defaultLibraryPaths : Seq[File],
     override val defaultIncludePaths : Seq[File],
-    val compilerExe : File,
+    val ccExe : File,
+    val cxxExe : File,
     val archiverExe : File,
     val linkerExe : File,
-    override val compileDefaultFlags : Seq[String] = Seq(),
+    override val ccDefaultFlags : Seq[String] = Seq(),
+    override val cxxDefaultFlags : Seq[String] = Seq(),
     override val linkDefaultFlags : Seq[String] = Seq() ) extends Compiler
 {
     
@@ -23,7 +25,7 @@ case class GccCompiler(
     def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
     
-        val depCmd = Seq[String]( compilerExe.toString, "-M", sourceFile.toString ) ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ systemIncludePaths.map( ip => "-isystem" + ip.toString )
+        val depCmd = Seq[String]( ccExe.toString, "-M", sourceFile.toString ) ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ systemIncludePaths.map( ip => "-isystem" + ip.toString )
         
         val depResult = runProcess( log, depCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
         
@@ -38,10 +40,20 @@ case class GccCompiler(
         reportFileGenerated( log, depFile, quiet )
     }
     
-    def compileToObjectFile( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
+    def ccCompileToObj( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
     { outputFile =>
     
-        val buildCmd = Seq[String]( compilerExe.toString, "-fPIC", "-c", "-o", outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ systemIncludePaths.map( ip => "-isystem" + ip.toString )
+        val buildCmd = Seq[String]( ccExe.toString, "-fPIC", "-c", "-o", outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ systemIncludePaths.map( ip => "-isystem" + ip.toString )
+
+        runProcess( log, buildCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
+        
+        reportFileGenerated( log, outputFile, quiet )
+    }
+    
+    def cxxCompileToObj( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".o") )
+    { outputFile =>
+    
+        val buildCmd = Seq[String]( cxxExe.toString, "-fPIC", "-c", "-o", outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ systemIncludePaths.map( ip => "-isystem" + ip.toString )
 
         runProcess( log, buildCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
         
@@ -63,7 +75,7 @@ case class GccCompiler(
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
         { outputFile =>
         
-            val cmd = Seq[String]( compilerExe.toString, "-shared", "-o", outputFile.toString ) ++ objectFiles.map( _.toString )
+            val cmd = Seq[String]( cxxExe.toString, "-shared", "-o", outputFile.toString ) ++ objectFiles.map( _.toString )
 
             runProcess( log, cmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
             
@@ -91,7 +103,8 @@ case class VSCompiler(
     val compilerExe : File,
     val archiverExe : File,
     val linkerExe : File,
-    override val compileDefaultFlags : Seq[String] = Seq(),
+    override val ccDefaultFlags : Seq[String] = Seq(),
+    override val cxxDefaultFlags : Seq[String] = Seq(),
     override val linkDefaultFlags : Seq[String] = Seq() ) extends Compiler
 {
     def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
@@ -112,7 +125,17 @@ case class VSCompiler(
         reportFileGenerated( log, depFile, quiet )
     }
 
-    def compileToObjectFile( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".obj") )
+    def ccCompileToObj( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".obj") )
+    { outputFile =>
+
+        val buildCmd = Seq[String]( compilerExe.toString, "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
+
+        runProcess( log, buildCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
+
+        reportFileGenerated( log, outputFile, quiet )
+    }
+    
+    def cxxCompileToObj( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".obj") )
     { outputFile =>
 
         val buildCmd = Seq[String]( compilerExe.toString, "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
