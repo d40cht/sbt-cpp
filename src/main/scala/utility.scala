@@ -55,37 +55,6 @@ class ProcessOutputToLog( val log : Logger ) extends ProcessOutputToString
 }
 
 
-object ProcessUtil
-{
-    def captureProcessOutput( pb : ProcessBuilder ) : (Int, String, String) =
-    {
-        val stderr = mutable.ArrayBuffer[String]()
-        val stdout = mutable.ArrayBuffer[String]()
-        
-        val peos = new ProcessOutputToString
-        val res = pb ! peos
-        
-        (res, peos.stderr.mkString("\n"), peos.stdout.mkString("\n"))
-    }
-    
-    /**
-      * Helper function to process sbt process log stdout and stderr streams to
-      * a couple of files
-      */
-    def pipeProcessOutput( pb : ProcessBuilder, stdoutFile : File, stderrFile : File )
-    {
-        val (res, stderr, stdout) = captureProcessOutput(pb)
-        
-        IO.write( stderrFile, stderr )
-        IO.write( stdoutFile, stdout )
-        
-        if ( res != 0 )
-        {
-            sys.error( "Non-zero exit code: " + res.toString )
-        }
-    }
-}
-
 class HeaderConfigFile( private val fileName : File )
 {
     private val defs = mutable.ArrayBuffer[(String, String)]()

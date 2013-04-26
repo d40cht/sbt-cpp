@@ -481,8 +481,18 @@ abstract class NativeBuild extends Build
                         s.log.info( "Running test: " + ncExe )
                         
                         val pb = Process( ncExe.toString :: Nil, _projectDirectory, tenvs : _* )
+                        val po = new ProcessOutputToString()
+                        val res = pb ! po
                         
-                        ProcessUtil.pipeProcessOutput( pb, stdoutFile, stderrFile )
+                        IO.writeLines( stdoutFile, po.stdout )
+                        IO.writeLines( stderrFile, po.stderr )
+                        
+                        if ( res != 0 )
+                        {
+                            s.log.error( "Test failed: " + _name )
+                            po.stderr.foreach( ll => s.log.error(ll) )
+                            sys.error( "Non-zero exit code: " + res.toString )
+                        }
                     }
                     
                     tcf.runIfNotCached( scd, Seq(ncExe) )
