@@ -40,18 +40,22 @@ trait Compiler
         log.debug( "Executing: " + cmd.mkString(" ") )
         val res = Process( cmd, cwd, env : _* ) ! pl
         
-        if ( res != 0 )
+        if ( quiet )
         {
-            if ( quiet )
+            pl.stdout.foreach( ll => log.debug(ll) )
+        }
+        else
+        {
+            if ( res == 0 )
             {
-                pl.stdout.foreach( ll => log.debug(ll) )
+                pl.stdout.foreach( ll => log.info(ll) )
             }
             else
             {
                 pl.stdout.foreach( ll => log.error(ll) )
+                throw new java.lang.RuntimeException( "Non-zero exit code: " + res )
             }
             
-            throw new java.lang.RuntimeException( "Non-zero exit code: " + res )
         }
         
         new ProcessResult(res, pl.stdout.mkString("\n"), pl.stderr.mkString("\n"))
@@ -348,7 +352,7 @@ abstract class NativeBuild extends Build
                     // Calculate dependencies
                     def findDependencies( sourceFile : File ) : Seq[File] =
                     {
-                        val depGen = c.findHeaderDependencies( s.log, bd, ids, sids, sourceFile, cfs )
+                        val depGen = c.findHeaderDependencies( s.log, bd, ids, sids, sourceFile, cfs, quiet=true )
                         
                         depGen.runIfNotCached( scd, Seq(sourceFile) )
                         
