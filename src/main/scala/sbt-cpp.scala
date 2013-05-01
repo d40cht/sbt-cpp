@@ -108,7 +108,7 @@ abstract class NativeBuild extends Build
     lazy val localConf = ConfigFactory.parseFile( file("build.conf").getAbsoluteFile, parseOptions )
     lazy val userConf = ConfigFactory.parseFile( file("user.conf").getAbsoluteFile, parseOptions )
     
-    lazy val conf = userConf.withFallback( localConf ).withFallback( defaultConf )
+    lazy val conf = userConf.withFallback( localConf ).withFallback( defaultConf ).resolve()
     
     lazy val ccFilePattern = Seq("*.c")
     lazy val cxxFilePattern = Seq("*.cpp", "*.cxx")
