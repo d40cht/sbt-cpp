@@ -65,14 +65,14 @@ object PlatformChecks
             {
                 val objFile = compileType match
                 {
-                    case CCTest => compiler.ccCompileToObj( log, td, compiler.defaultIncludePaths ++ includePaths, Seq(), testFile, Seq(), quiet=true )()
-                    case CXXTest => compiler.cxxCompileToObj( log, td, compiler.defaultIncludePaths ++ includePaths, Seq(), testFile, Seq(), quiet=true )()
+                    case CCTest => compiler.ccCompileToObj( log, td, compiler.defaultIncludePaths ++ includePaths, Seq(), testFile, compiler.ccDefaultFlags, quiet=true )()
+                    case CXXTest => compiler.cxxCompileToObj( log, td, compiler.defaultIncludePaths ++ includePaths, Seq(), testFile, compiler.cxxDefaultFlags, quiet=true )()
                 }
                 
                 if ( andLink )
                 {
                     compiler.buildExecutable( log, td, outputName,
-                        linkFlags=Seq(),
+                        linkFlags=compiler.linkDefaultFlags,
                         linkPaths=compiler.defaultLibraryPaths ++ linkPaths,
                         linkLibraries=linkLibraries,
                         inputFiles=Seq(objFile), quiet=true )()

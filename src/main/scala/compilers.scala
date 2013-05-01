@@ -25,12 +25,13 @@ case class GccCompiler(
     def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
     
-        val depCmd = Seq[String]( ccExe.toString, "-M", sourceFile.toString ) ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ systemIncludePaths.map( ip => "-isystem" + ip.toString )
+        val tmpDepFile = buildDirectory / (sourceFile.base + ".dt")
+        val depCmd = Seq[String]( ccExe.toString, "-MF", tmpDepFile.toString, "-M", sourceFile.toString ) ++ compilerFlags ++ includePaths.map( ip => "-I" + ip.toString ) ++ systemIncludePaths.map( ip => "-isystem" + ip.toString )
         
         val depResult = runProcess( log, depCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
         
         // Strip off any trailing backslash characters from the output
-        val depFileLines = depResult.stdout.split("\n").map( _.replace( "\\", "" ) )
+        val depFileLines = IO.readLines( tmpDepFile ).map( _.replace( "\\", "" ) )
     
         // Drop the first column and split on spaces to get all the files (potentially several per line )
         val allFiles = depFileLines.flatMap( _.split(" ").drop(1) ).map( x => new File(x.trim) )

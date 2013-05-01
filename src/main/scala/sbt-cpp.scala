@@ -374,7 +374,7 @@ abstract class NativeBuild extends Build
                     // Calculate dependencies
                     def findDependencies( sourceFile : File ) : Seq[File] =
                     {
-                        val depGen = c.findHeaderDependencies( s.log, bd, ids, sids, sourceFile, cfs, quiet=true )
+                        val depGen = c.findHeaderDependencies( s.log, bd, ids, sids, sourceFile, cfs )
                         
                         depGen.runIfNotCached( scd, Seq(sourceFile) )
                         
@@ -391,7 +391,7 @@ abstract class NativeBuild extends Build
                     // Calculate dependencies
                     def findDependencies( sourceFile : File ) : Seq[File] =
                     {
-                        val depGen = c.findHeaderDependencies( s.log, bd, ids, sids, sourceFile, cfs, quiet=true )
+                        val depGen = c.findHeaderDependencies( s.log, bd, ids, sids, sourceFile, cfs )
                         
                         depGen.runIfNotCached( scd, Seq(sourceFile) )
                         
@@ -530,33 +530,43 @@ abstract class NativeBuild extends Build
                 nativeTest <<= (nativeExe, testEnvironmentVariables, stateCacheDirectory, streams) map
                 { case (ncExe, tenvs, scd, s) =>
 
+                    val resFile = file( ncExe + ".res" )
                     val stdoutFile = file( ncExe + ".stdout" )
-                    val stderrFile = file( ncExe + ".stderr" )
                     
-                    val tcf = FunctionWithResultPath( stderrFile )
+                    // TODO: This mutable var is evil. Return res more sanely from the closure
+                    var res = 0
+                    val tcf = FunctionWithResultPath( stdoutFile )
                     { _ =>
                         s.log.info( "Running test: " + ncExe )
                         
                         val pb = Process( ncExe.toString :: Nil, _projectDirectory, tenvs : _* )
-                        val po = new ProcessOutputToString()
-                        val res = pb ! po
+                        val po = new ProcessOutputToString( mergeToStdout=true )
+                        res = pb ! po
                         
                         IO.writeLines( stdoutFile, po.stdout )
-                        IO.writeLines( stderrFile, po.stderr )
+                        IO.writeLines( resFile, Seq( res.toString ) )
                         
-                        if ( res != 0 )
-                        {
-                            s.log.error( "Test failed: " + _name )
-                            po.stderr.foreach( ll => s.log.error(ll) )
-                            sys.error( "Non-zero exit code: " + res.toString )
-                        }
                     }
                     
                     tcf.runIfNotCached( scd, Seq(ncExe) )
                     
-                    Some( (stdoutFile, stderrFile) )
+                    Some( (resFile, stdoutFile) )
                 },
-                test <<= nativeTest.map { nt => Unit }
+                test <<= (nativeTest, streams).map
+                {
+                    case (Some( (resFile, stdOutFile) ), s) =>
+                    {
+                        val res = IO.readLines(resFile).head.toInt
+                        if ( res != 0 )
+                        {
+                            s.log.error( "Test failed: " + _name )
+                            IO.readLines( stdOutFile ).foreach( l => s.log.info( l ) )
+                            sys.error( "Non-zero exit code: " + res.toString )
+                        }
+                    }
+                    case (None, s) =>
+                      
+                }
             )
             NativeProject( _name, _projectDirectory, defaultSettings ++ settings )
         }
