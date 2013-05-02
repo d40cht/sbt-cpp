@@ -212,6 +212,7 @@ abstract class NativeBuild extends Build
     val ccSourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("native-cc-source-files-with-deps", "All C source files with dependencies for this project")
     val cxxSourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("native-cxx-source-files-with-deps", "All C++ source files with dependencies for this project")
     val objectFiles = TaskKey[Seq[File]]("native-object-files", "All object files for this project" )
+    val archiveFiles = TaskKey[Seq[File]]("native-archive-files", "All archive files for this project, specified by full path" )
     val nativeExe = TaskKey[File]("native-exe", "Executable built by this project (if appropriate)" )
     val nativeRun = TaskKey[Unit]("native-run", "Perform a native run of this project" )
     val testProject = TaskKey[Project]("native-test-project", "The test sub-project for this project")
@@ -263,8 +264,8 @@ abstract class NativeBuild extends Build
             { case (np, other) =>
                 np.dependsOn( other ).settings(
                     includeDirectories  <++= (exportedIncludeDirectories in other),
-                    objectFiles         <++= (exportedLibs in other),
-                    compile             <<=  compile.dependsOn(exportedLibs in other) )
+                    archiveFiles        <++= (exportedLibs in other)/*,
+                    compile             <<=  compile.dependsOn(exportedLibs in other)*/ )
             }
             
             new NativeProject( newP, subProjectBuilders, dependencies ++ others )
@@ -276,8 +277,8 @@ abstract class NativeBuild extends Build
             { case (np, other) =>
                 np.dependsOn( other ).settings(
                     systemIncludeDirectories    <++= (exportedIncludeDirectories in other),
-                    objectFiles                 <++= (exportedLibs in other),
-                    compile                     <<=  compile.dependsOn(exportedLibs in other) )
+                    archiveFiles                <++= (exportedLibs in other)/*,
+                    compile                     <<=  compile.dependsOn(exportedLibs in other)*/ )
             }
             
             new NativeProject( newP, subProjectBuilders, dependencies ++ others )
@@ -348,6 +349,8 @@ abstract class NativeBuild extends Build
                 linkDirectories             <<= (compiler) map { _.defaultLibraryPaths },
                 
                 nativeLibraries             <<= (projectBuildDirectory) map { _ => Seq() },
+                
+                archiveFiles                <<= (projectBuildDirectory) map { _ => Seq() },
                 
                 sourceDirectories           <<= (projectDirectory) map { pd => Seq(pd / "source") },
                 
@@ -487,7 +490,8 @@ abstract class NativeBuild extends Build
                     (
                         systemIncludeDirectories    <++= (systemIncludeDirectories in mainLibrary),
                         includeDirectories          <++= (includeDirectories in mainLibrary),
-                        objectFiles                 <++= /*(exportedLibs in mainLibrary) ++*/ (objectFiles in mainLibrary)
+                        archiveFiles                <++= (exportedLibs in mainLibrary),
+                        archiveFiles                <++= (archiveFiles in mainLibrary)
                     ) ++ _settings )
                 }
                 
@@ -519,10 +523,10 @@ abstract class NativeBuild extends Build
         def apply( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]] ) =
         {
             val defaultSettings = Seq(
-                nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
-                { case (c, projName, bd, scd, ofs, lfs, lds, nls, s) =>
+                nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, archiveFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
+                { case (c, projName, bd, scd, ofs, afs, lfs, lds, nls, s) =>
                 
-                    val blf = c.buildExecutable( s.log, bd, projName, lfs, lds, nls, ofs )
+                    val blf = c.buildExecutable( s.log, bd, projName, lfs, lds, nls, ofs ++ afs )
                     
                     blf.runIfNotCached( scd, ofs )
                 },
@@ -577,10 +581,10 @@ abstract class NativeBuild extends Build
         def apply( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]] ) =
         {
             val defaultSettings = Seq(
-                nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
-                { case (c, projName, bd, scd, ofs, lfs, lds, nls, s) =>
+                nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, archiveFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
+                { case (c, projName, bd, scd, ofs, afs, lfs, lds, nls, s) =>
                 
-                    val blf = c.buildExecutable( s.log, bd, projName, lfs, lds, nls, ofs )
+                    val blf = c.buildExecutable( s.log, bd, projName, lfs, lds, nls, ofs ++ afs )
                     
                     blf.runIfNotCached( scd, ofs )
                 },
