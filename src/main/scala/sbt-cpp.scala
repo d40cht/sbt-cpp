@@ -33,7 +33,7 @@ trait Compiler
     
     protected def reportFileGenerated( log : Logger, genFile : File, quiet : Boolean )
     {
-        if ( !quiet ) log.success( genFile.toString )
+        if ( !quiet ) log.info( genFile.toString )
     }
     
     case class ProcessResult( val retCode : Int, val stdout : String, val stderr : String )
@@ -53,7 +53,7 @@ trait Compiler
         {
             if ( res == 0 )
             {
-                pl.stdout.foreach( ll => log.info(ll) )
+                pl.stdout.foreach( ll => log.warn(ll) )
             }
             else
             {
