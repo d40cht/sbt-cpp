@@ -111,8 +111,8 @@ case class VSCompiler(
     def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
 
-        val depCmd = Seq[String]( compilerExe.toString, "/c", "/showIncludes", sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString ) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
-        val depResult = runProcess( log, depCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
+        val depCmd = Seq[String]( compilerExe.toString, "/nologo", "/c", "/showIncludes", sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString ) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
+        val depResult = runProcess( log, depCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet=true )
 
         // Strip off any trailing backslash characters from the output
         val prefix = "Note: including file:"
@@ -129,7 +129,7 @@ case class VSCompiler(
     def ccCompileToObj( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".obj") )
     { outputFile =>
 
-        val buildCmd = Seq[String]( compilerExe.toString, "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
+        val buildCmd = Seq[String]( compilerExe.toString, "/nologo", "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
 
         runProcess( log, buildCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
@@ -139,7 +139,7 @@ case class VSCompiler(
     def cxxCompileToObj( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".obj") )
     { outputFile =>
 
-        val buildCmd = Seq[String]( compilerExe.toString, "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
+        val buildCmd = Seq[String]( compilerExe.toString, "/nologo", "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
 
         runProcess( log, buildCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
@@ -150,7 +150,7 @@ case class VSCompiler(
         FunctionWithResultPath( buildDirectory / (libName + ".lib") )
         { outputFile =>
 
-            val arCmd = Seq[String]( archiverExe.toString, "/OUT:" + outputFile.toString ) ++ objectFiles.map( _.toString )
+            val arCmd = Seq[String]( archiverExe.toString, "/nologo", "/OUT:" + outputFile.toString ) ++ objectFiles.map( _.toString )
             
             runProcess( log, arCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
@@ -161,7 +161,7 @@ case class VSCompiler(
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
         { outputFile =>
 
-            val cmd = Seq[String]( compilerExe.toString, "/DLL", "/OUT:" + outputFile.toString ) ++ objectFiles.map( _.toString )
+            val cmd = Seq[String]( compilerExe.toString, "/nologo", "/DLL", "/OUT:" + outputFile.toString ) ++ objectFiles.map( _.toString )
 
             runProcess( log, cmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
@@ -171,7 +171,7 @@ case class VSCompiler(
     def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkFlags : Seq[String], linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / exeName )
         { outputFile =>
-            val linkCmd = Seq[String]( linkerExe.toString, "/OUT:" + outputFile.toString ) ++ inputFiles.map( _.toString ) ++ linkPaths.map( lp => "/LIBPATH:" + lp ) ++ linkLibraries.map( ll => "-l" + ll )
+            val linkCmd = Seq[String]( linkerExe.toString, "/nologo", "/OUT:" + outputFile.toString ) ++ inputFiles.map( _.toString ) ++ linkPaths.map( lp => "/LIBPATH:" + lp ) ++ linkLibraries.map( ll => "-l" + ll )
 
             runProcess( log, linkCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
