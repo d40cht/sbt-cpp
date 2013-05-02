@@ -1,5 +1,6 @@
 #include "library2.hpp"
 #include "library1.hpp"
+#include "check.hpp"
 
 #define STRINGIFY_HELPER(ARG) #ARG
 #define STRINGIFY( ARG ) STRINGIFY_HELPER(ARG)

@@ -528,7 +528,7 @@ abstract class NativeBuild extends Build
                 
                     val blf = c.buildExecutable( s.log, bd, projName, lfs, lds, nls, ofs ++ afs )
                     
-                    blf.runIfNotCached( scd, ofs )
+                    blf.runIfNotCached( scd, ofs ++ afs )
                 },
                 compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
                 nativeTest <<= (nativeExe, testEnvironmentVariables, stateCacheDirectory, streams) map
@@ -586,7 +586,7 @@ abstract class NativeBuild extends Build
                 
                     val blf = c.buildExecutable( s.log, bd, projName, lfs, lds, nls, ofs ++ afs )
                     
-                    blf.runIfNotCached( scd, ofs )
+                    blf.runIfNotCached( scd, ofs ++ afs )
                 },
                 compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
                 run <<= inputTask { (argTask: TaskKey[Seq[String]]) =>
