@@ -14,12 +14,12 @@ object TestBuild extends NativeDefaultBuild
 {
     import PlatformChecks._
     
-    override def checkEnvironment( log : Logger, env : Environment ) =
+    override def checkConfiguration( log : Logger, config : BuildConfiguration ) =
     {
         // Require a working c and cxx compiler
-        testCCompiler( log, env.compiler )
-        testCXXCompiler( log, env.compiler )
-        testHeaderParse( log, env.compiler )
+        testCCompiler( log, config.compiler )
+        testCXXCompiler( log, config.compiler )
+        testHeaderParse( log, config.compiler )
 
         /*assert( tryCompileAndLink( log, env.compiler, """
             |#include <zlib.h>
@@ -30,22 +30,22 @@ object TestBuild extends NativeDefaultBuild
             |}""".stripMargin, CXXTest, linkLibraries=Seq("z") ) )*/
         
         // Check for a few expected headers and type sizes
-        requireHeader( log, env.compiler, CCTest, "stdio.h" )
-        requireHeader( log, env.compiler, CXXTest, "iostream" )
-        assert( !testForHeader( log, env.compiler, CCTest, "iostream" ) )
+        requireHeader( log, config.compiler, CCTest, "stdio.h" )
+        requireHeader( log, config.compiler, CXXTest, "iostream" )
+        assert( !testForHeader( log, config.compiler, CCTest, "iostream" ) )
         
-        requireSymbol( log, env.compiler, CCTest, "printf", Seq("stdio.h") )
-        requireSymbol( log, env.compiler, CXXTest, "std::cout", Seq("iostream") )
+        requireSymbol( log, config.compiler, CCTest, "printf", Seq("stdio.h") )
+        requireSymbol( log, config.compiler, CXXTest, "std::cout", Seq("iostream") )
         
-        requireTypeSize( log, env.compiler, CCTest, "int32_t", 4, Seq("stdint.h") )
-        requireTypeSize( log, env.compiler, CCTest, "int64_t", 8, Seq("stdint.h") )
+        requireTypeSize( log, config.compiler, CCTest, "int32_t", 4, Seq("stdint.h") )
+        requireTypeSize( log, config.compiler, CCTest, "int64_t", 8, Seq("stdint.h") )
         
         // Check that a few things that shouldn't exist don't exist
-        assert( !testForHeader( log, env.compiler, CCTest, "boggletoop" ) )
-        assert( !testForSymbolDeclaration( log, env.compiler, CCTest, "toffeecake", Seq("stdio.h") ) )
+        assert( !testForHeader( log, config.compiler, CCTest, "boggletoop" ) )
+        assert( !testForSymbolDeclaration( log, config.compiler, CCTest, "toffeecake", Seq("stdio.h") ) )
         
-        assert( !testForTypeSize( log, env.compiler, CXXTest, "int32_t", 3, Seq("stdint.h") ) )
-        assert( !testForTypeSize( log, env.compiler, CXXTest, "int32_t", 5, Seq("stdint.h") ) )
+        assert( !testForTypeSize( log, config.compiler, CXXTest, "int32_t", 3, Seq("stdint.h") ) )
+        assert( !testForTypeSize( log, config.compiler, CXXTest, "int32_t", 5, Seq("stdint.h") ) )
     }
     
     lazy val config = NativeProject( "config", file("."), Seq(
@@ -71,7 +71,7 @@ object TestBuild extends NativeDefaultBuild
     lazy val checkLib = ProjectRef( file("../utility"), "check" )
     
     lazy val foo = NativeProject( "foo", file("foo"), Seq(
-        compile <<= (streams, buildEnvironment) map
+        compile <<= (streams, buildConfiguration) map
         { (s, be) =>
             
             sbt.inc.Analysis.Empty
@@ -84,7 +84,7 @@ object TestBuild extends NativeDefaultBuild
         
     lazy val library2 = StaticLibrary( "library2", file( "library2" ),
         Seq(
-            cxxCompileFlags <++= (buildEnvironment) map
+            cxxCompileFlags <++= (buildConfiguration) map
             { be =>
                 
                 be.conf.debugOptLevel match
@@ -94,7 +94,7 @@ object TestBuild extends NativeDefaultBuild
                 }
             },
             
-            cxxCompileFlags <++= (buildEnvironment) map
+            cxxCompileFlags <++= (buildConfiguration) map
             { be =>
                 
                 be.conf.compiler match
@@ -105,7 +105,7 @@ object TestBuild extends NativeDefaultBuild
                 }
             },
             
-            cxxCompileFlags <++= (buildEnvironment) map
+            cxxCompileFlags <++= (buildConfiguration) map
             { be =>
                 
                 be.conf.targetPlatform match

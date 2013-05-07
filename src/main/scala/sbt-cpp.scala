@@ -7,19 +7,24 @@ import complete.DefaultParsers._
 import com.typesafe.config.{ConfigFactory, ConfigParseOptions}
 import scala.collection.{mutable, immutable}
 
-//import sbt.std.{TaskStreams}
+import com.typesafe.config.{Config}
+import scala.collection.JavaConversions._
 
 /**
   * The base trait from which all native compilers must be inherited in order
   */
 trait Compiler
 {
-    def toolPaths : Seq[File]
+    def toolPaths           : Seq[File]
     def defaultLibraryPaths : Seq[File]
     def defaultIncludePaths : Seq[File]
-    def ccDefaultFlags : Seq[String]
-    def cxxDefaultFlags : Seq[String]
-    def linkDefaultFlags : Seq[String]
+    def ccExe               : File
+    def cxxExe              : File
+    def archiverExe         : File
+    def linkerExe           : File
+    def ccDefaultFlags      : Seq[String]
+    def cxxDefaultFlags     : Seq[String]
+    def linkDefaultFlags    : Seq[String]
     
     def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean = false ) : FunctionWithResultPath
     
@@ -29,8 +34,10 @@ trait Compiler
     def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
     def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
     def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkFlags : Seq[String], linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
-    
-    
+}
+
+trait CompilationProcess
+{
     protected def reportFileGenerated( log : Logger, genFile : File, quiet : Boolean )
     {
         if ( !quiet ) log.info( genFile.toString )
@@ -68,6 +75,33 @@ trait Compiler
     }
 }
 
+trait CompilerWithConfig extends Compiler
+{
+    def buildTypeTrait      : BuildTypeTrait
+    def config              : Config
+
+    private val configPrefix = buildTypeTrait.pathDirs
+    private def ton( d : Seq[String] ) = d.mkString(".")
+    
+    override def toolPaths           = config.getStringList( ton( configPrefix :+ "toolPaths" ) ).map( file )
+    override def defaultIncludePaths = config.getStringList( ton( configPrefix :+ "includePaths" ) ).map( file )
+    override def defaultLibraryPaths = config.getStringList( ton( configPrefix :+ "libraryPaths" ) ).map( file )
+    override def ccExe               = file( config.getString( ton( configPrefix :+ "ccExe" ) ) )
+    override def cxxExe              = file( config.getString( ton( configPrefix :+ "cxxExe" ) ) )
+    override def archiverExe         = file( config.getString( ton( configPrefix :+ "archiver" ) ) )
+    override def linkerExe           = file( config.getString( ton( configPrefix :+ "linker" ) ) )
+    override def ccDefaultFlags      = config.getStringList( ton( configPrefix :+ "ccFlags" ) )
+    override def cxxDefaultFlags     = config.getStringList( ton( configPrefix :+ "cxxFlags" ) )
+    override def linkDefaultFlags    = config.getStringList( ton( configPrefix :+ "linkFlags" ) )
+}
+
+case class NativeAnalysis[T]( val data : T, val warningLines : Seq[String] = Seq() )
+{
+    def addWarningLine( line : String ) = new NativeAnalysis( data, line +: warningLines )
+}
+
+
+
 /**
   * Build configurations for a particular project must inherit from this trait.
   * See the default in NativeDefaultBuild for more details
@@ -99,6 +133,8 @@ object NativeBuild
 abstract class NativeBuild extends Build
 {
     import NativeBuild._
+    
+    //type ObjectFile = NativeAnalysis[File]
     
     // Magic Gav suggested that the ConfigFactory needs the classloader for this class
     // in order to be able to get things out of the jar in which it is packaged. This seems
@@ -146,7 +182,7 @@ abstract class NativeBuild extends Build
 
     type BuildType <: BuildTypeTrait
     
-    case class Environment( val conf : BuildType, val compiler : Compiler )
+    case class BuildConfiguration( val conf : BuildType, val compiler : Compiler )
     
     // TODO: Currently not thread/process safe. Fix!
     case class PlatformConfig private ( private val cacheFile : File, private val configMap : immutable.Map[String, String])
@@ -188,15 +224,14 @@ abstract class NativeBuild extends Build
         }
     }
     
-    def configurations : Set[Environment]
+    def configurations : Set[BuildConfiguration]
     
     /**
      * Override this in your project to do appropriate checks on the build environment
      */
-    def checkEnvironment( log : Logger, env : Environment ) = { }
-    
+    def checkConfiguration( log : Logger, env : BuildConfiguration ) = { }
     val compiler = TaskKey[Compiler]("native-compiler")
-    val buildEnvironment = TaskKey[Environment]("native-build-environment")
+    val buildConfiguration = TaskKey[BuildConfiguration]("native-build-configuration-key")
     val nativePlatformConfig = TaskKey[PlatformConfig]("native-platform-config")
     val rootBuildDirectory = TaskKey[File]("native-root-build-dir", "Build root directory (for the config, not the project)")
     val projectBuildDirectory = TaskKey[File]("native-project-build-dir", "Build directory for this config and project")
@@ -227,30 +262,29 @@ abstract class NativeBuild extends Build
     
 
     type Sett = Project.Setting[_]
-
-    val envKey = AttributeKey[Environment]("envKey")
     
     val buildOptsParser = Space ~> configurations.map( x => token(x.conf.name) ).reduce(_ | _)
     
     
     val nativeBuildConfigurationCommandName = "native-build-configuration"
     
+    val configKey = AttributeKey[BuildConfiguration]("configKey")
+    
     def setBuildConfigCommand = Command(nativeBuildConfigurationCommandName)(_ => buildOptsParser)
     {
-        (state, envName) =>
+        (state, configName) =>
    
-        val envDict = configurations.map( x => (x.conf.name, x) ).toMap
-        val env = envDict(envName)
+        val configDict = configurations.map( x => (x.conf.name, x) ).toMap
+        val config = configDict(configName)
 
-        val updatedAttributes = state.attributes.put( envKey, env )
+        val updatedAttributes = state.attributes.put( configKey, config )
         
-        //val envCheckFile = buildTargetDirectory / env.conf.pathDirs( .foldLeft( td )( _ / _ )
-        val envCheckFile = env.conf.targetDirectory(buildRootDirectory) / "EnvHealthy.txt"
+        val configCheckFile = config.conf.targetDirectory(buildRootDirectory) / "EnvHealthy.txt"
         
-        if ( !envCheckFile.exists )
+        if ( !configCheckFile.exists )
         {
-            checkEnvironment( state.log, env )
-            IO.write( envCheckFile, "HEALTHY" )
+            checkConfiguration( state.log, config )
+            IO.write( configCheckFile, "HEALTHY" )
         }
         
         state.copy( attributes=updatedAttributes )
@@ -264,8 +298,7 @@ abstract class NativeBuild extends Build
             { case (np, other) =>
                 np.dependsOn( other ).settings(
                     includeDirectories  <++= (exportedIncludeDirectories in other),
-                    archiveFiles        <++= (exportedLibs in other)/*,
-                    compile             <<=  compile.dependsOn(exportedLibs in other)*/ )
+                    archiveFiles        <++= (exportedLibs in other) )
             }
             
             new NativeProject( newP, subProjectBuilders, dependencies ++ others )
@@ -277,14 +310,11 @@ abstract class NativeBuild extends Build
             { case (np, other) =>
                 np.dependsOn( other ).settings(
                     systemIncludeDirectories    <++= (exportedIncludeDirectories in other),
-                    archiveFiles                <++= (exportedLibs in other)/*,
-                    compile                     <<=  compile.dependsOn(exportedLibs in other)*/ )
+                    archiveFiles                <++= (exportedLibs in other) )
             }
             
             new NativeProject( newP, subProjectBuilders, dependencies ++ others )
         }
-        
-        //def addSubProject( spb : Project => Project ) = new NativeProject( p, spb +: subProjectBuilders )
     }
     
     implicit def toProject( rnp : NativeProject ) = rnp.p
@@ -308,9 +338,9 @@ abstract class NativeBuild extends Build
             
                 commands                    ++= (BasicCommands.allBasicCommands :+ setBuildConfigCommand),
                 
-                buildEnvironment            <<= state map
+                buildConfiguration          <<= state map
                 { s =>
-                    val beo = s.attributes.get( envKey )
+                    val beo = s.attributes.get( configKey )
                     
                     if ( beo.isEmpty ) sys.error( "Please set a build configuration using the %s command".format(nativeBuildConfigurationCommandName) )
                     
@@ -322,13 +352,13 @@ abstract class NativeBuild extends Build
                 
                 historyPath                 <<= target { t => Some(t / ".history") },
                 
-                rootBuildDirectory          <<= (target, buildEnvironment) map { case (td, be) => be.conf.targetDirectory(td) },
+                rootBuildDirectory          <<= (target, buildConfiguration) map { case (td, be) => be.conf.targetDirectory(td) },
                 
                 clean                       <<= (rootBuildDirectory) map { rbd => IO.delete(rbd) },
                 
                 cleanAll                    <<= (target) map { td => IO.delete(td) },
                 
-                compiler                    <<= (buildEnvironment) map { _.compiler },
+                compiler                    <<= (buildConfiguration) map { _.compiler },
                 
                 projectBuildDirectory       <<= (rootBuildDirectory, name) map
                 { case (rbd, n) =>
@@ -414,7 +444,8 @@ abstract class NativeBuild extends Build
                     (ccsfd ++ cxxsfd).flatMap { case (sf, deps) => (sf +: deps.toList) }.toList.distinct
                 },
                 
-                objectFiles                 <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, ccSourceFilesWithDeps, cxxSourceFilesWithDeps, ccCompileFlags, cxxCompileFlags, streams) flatMap {
+                objectFiles                 <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, ccSourceFilesWithDeps, cxxSourceFilesWithDeps, ccCompileFlags, cxxCompileFlags, streams) flatMap
+                {
                     
                     case (c, bd, scd, ids, sids, ccfs, cxxfs, ccflags, cxxflags, s) =>
                     

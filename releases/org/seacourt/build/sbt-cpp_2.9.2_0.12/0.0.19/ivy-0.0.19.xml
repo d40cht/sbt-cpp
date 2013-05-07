@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ivy-module version="2.0" xmlns:e="http://ant.apache.org/ivy/extra">
-	<info organisation="org.seacourt.build" module="sbt-cpp" revision="0.0.18" status="release" publication="20130507145152" e:scalaVersion="2.9.2" e:sbtVersion="0.12">
+	<info organisation="org.seacourt.build" module="sbt-cpp" revision="0.0.19" status="release" publication="20130507165737" e:scalaVersion="2.9.2" e:sbtVersion="0.12">
 		<description>
 		sbt-cpp
 		</description>

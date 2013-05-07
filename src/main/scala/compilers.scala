@@ -3,25 +3,15 @@ package org.seacourt.build
 import sbt._
 import Keys._
 
+import com.typesafe.config.{Config}
+
 import scala.collection.{mutable, immutable}
 
 /**
   * Gcc and compatible (e.g. Clang) compilers
   */
-case class GccCompiler(
-    override val toolPaths : Seq[File],
-    override val defaultLibraryPaths : Seq[File],
-    override val defaultIncludePaths : Seq[File],
-    val ccExe : File,
-    val cxxExe : File,
-    val archiverExe : File,
-    val linkerExe : File,
-    override val ccDefaultFlags : Seq[String] = Seq(),
-    override val cxxDefaultFlags : Seq[String] = Seq(),
-    override val linkDefaultFlags : Seq[String] = Seq() ) extends Compiler
+case class GccLikeCompiler( override val config : Config, override val buildTypeTrait : BuildTypeTrait ) extends CompilerWithConfig with CompilationProcess
 {
-    
-    
     def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
     
@@ -97,21 +87,12 @@ case class GccCompiler(
 /**
   * Visual studio cl.exe compiler
   */
-case class VSCompiler(
-    override val toolPaths : Seq[File],
-    override val defaultLibraryPaths : Seq[File],
-    override val defaultIncludePaths : Seq[File],
-    val compilerExe : File,
-    val archiverExe : File,
-    val linkerExe : File,
-    override val ccDefaultFlags : Seq[String] = Seq(),
-    override val cxxDefaultFlags : Seq[String] = Seq(),
-    override val linkDefaultFlags : Seq[String] = Seq() ) extends Compiler
-{
+case class VSCompiler( override val config : Config, override val buildTypeTrait : BuildTypeTrait ) extends CompilerWithConfig with CompilationProcess
+{   
     def findHeaderDependencies( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".d") )
     { depFile =>
 
-        val depCmd = Seq[String]( compilerExe.toString, "/nologo", "/c", "/showIncludes", sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString ) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
+        val depCmd = Seq[String]( ccExe.toString, "/nologo", "/c", "/showIncludes", sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString ) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
         val depResult = runProcess( log, depCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet=true )
 
         // Strip off any trailing backslash characters from the output
@@ -129,7 +110,7 @@ case class VSCompiler(
     def ccCompileToObj( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".obj") )
     { outputFile =>
 
-        val buildCmd = Seq[String]( compilerExe.toString, "/nologo", "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
+        val buildCmd = Seq[String]( ccExe.toString, "/nologo", "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
 
         runProcess( log, buildCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
@@ -139,7 +120,7 @@ case class VSCompiler(
     def cxxCompileToObj( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean ) = FunctionWithResultPath( buildDirectory / (sourceFile.base + ".obj") )
     { outputFile =>
 
-        val buildCmd = Seq[String]( compilerExe.toString, "/nologo", "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
+        val buildCmd = Seq[String]( cxxExe.toString, "/nologo", "/c", "/EHsc", "/Fo" + outputFile.toString, sourceFile.toString ) ++ compilerFlags ++ includePaths.flatMap( ip => Seq("/I", ip.toString) ) ++ systemIncludePaths.flatMap( ip => Seq("/I", ip.toString) )
 
         runProcess( log, buildCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
@@ -161,7 +142,7 @@ case class VSCompiler(
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
         { outputFile =>
 
-            val cmd = Seq[String]( compilerExe.toString, "/nologo", "/DLL", "/OUT:" + outputFile.toString ) ++ objectFiles.map( _.toString )
+            val cmd = Seq[String]( cxxExe.toString, "/nologo", "/DLL", "/OUT:" + outputFile.toString ) ++ objectFiles.map( _.toString )
 
             runProcess( log, cmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 

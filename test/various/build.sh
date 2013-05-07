@@ -4,8 +4,8 @@ set -e
 
 rm -rf target
 
-../../sbt "native-build-configuration Debug_Gcc_LinuxPC" native-clean-all clean compile test
-../../sbt "native-build-configuration Release_Gcc_LinuxPC" clean compile test
-../../sbt "native-build-configuration Debug_Clang_LinuxPC" clean compile test
-../../sbt "native-build-configuration Release_Clang_LinuxPC" clean compile test
+../../sbt "native-build-configuration Gcc_LinuxPC_Debug" native-clean-all clean compile test
+../../sbt "native-build-configuration Gcc_LinuxPC_Release" clean compile test
+../../sbt "native-build-configuration Clang_LinuxPC_Debug" clean compile test
+../../sbt "native-build-configuration Clang_LinuxPC_Release" clean compile test
 
