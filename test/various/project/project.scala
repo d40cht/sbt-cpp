@@ -122,15 +122,18 @@ object TestBuild extends NativeDefaultBuild
     lazy val boostPython = SharedLibrary( "boostPython", file("boostpython"),
         Seq(
             includeDirectories  += file("/usr/include/python2.7"),
+            nativeLibraries     ++= Seq( "boost_python" ),
             linkFlags           += "-export-dynamic"
         ) )
         
-    lazy val boostPythonTest = NativeProject( "boostPythonTest", file("boostpython"),
+    lazy val boostPythonTest = NativeProject( "boostPythonTest", file("boostpythontest"),
         Seq(
-            test <<= (exportedLibDirectories in boostPython) map
-            { eld =>
+            test <<= (exportedLibDirectories in boostPython, projectDirectory) map
+            { (eld, pd) =>
                 
+                val testEnvs = Seq( "PYTHONPATH" -> eld.mkString(":") )
                 
+                Process( Seq("/usr/bin/python", (pd / "test.py").toString), pd, testEnvs : _* ) !!
             }
         ) ).nativeDependsOn( boostPython )
         

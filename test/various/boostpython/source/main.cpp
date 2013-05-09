@@ -3,7 +3,6 @@
 using namespace boost::python;
 
 
-
 struct World
 {
     void set(std::string msg) { this->msg = msg; }
@@ -11,7 +10,7 @@ struct World
     std::string msg;
 };
 
-BOOST_PYTHON_MODULE(hello)
+BOOST_PYTHON_MODULE(boostPython)
 {
     class_<World>("World")
         .def("greet", &World::greet)

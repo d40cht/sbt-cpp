@@ -52,7 +52,7 @@ case class GccLikeCompiler( override val config : Config, override val buildType
     }
     
     def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], linkFlags : Seq[String], quiet : Boolean ) =
-        FunctionWithResultPath( buildDirectory / ("lib" + libName + ".a") )
+        FunctionWithResultPath( buildDirectory / (libName + ".a") )
         { outputFile =>
         
             val arCmd = Seq[String]( archiverExe.toString, "-c", "-r", outputFile.toString ) ++ linkFlags ++ objectFiles.map( _.toString )
@@ -62,11 +62,11 @@ case class GccLikeCompiler( override val config : Config, override val buildType
             reportFileGenerated( log, outputFile, quiet )
         }
         
-    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], linkFlags : Seq[String], quiet : Boolean ) =
-        FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
+    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], linkPaths : Seq[File], linkLibraries : Seq[String], linkFlags : Seq[String], quiet : Boolean ) =
+        FunctionWithResultPath( buildDirectory / (libName + ".so") )
         { outputFile =>
         
-            val cmd = Seq[String]( cxxExe.toString, "-shared", "-o", outputFile.toString ) ++ linkFlags ++ objectFiles.map( _.toString )
+            val cmd = Seq[String]( cxxExe.toString, "-shared", "-o", outputFile.toString ) ++ linkFlags ++ objectFiles.map( _.toString ) ++ linkPaths.map( lp => "-L" + lp ) ++ linkLibraries.map( ll => "-l" + ll )
 
             runProcess( log, cmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
             
@@ -138,7 +138,7 @@ case class VSCompiler( override val config : Config, override val buildTypeTrait
             reportFileGenerated( log, outputFile, quiet )
         }
 
-    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], linkFlags : Seq[String], quiet : Boolean ) =
+    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], linkPaths : Seq[File], linkLibraries : Seq[String], linkFlags : Seq[String], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
         { outputFile =>
 

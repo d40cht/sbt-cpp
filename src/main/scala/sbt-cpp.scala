@@ -32,7 +32,7 @@ trait Compiler
     def cxxCompileToObj( log : Logger, buildDirectory : File, includePaths : Seq[File], systemIncludePaths : Seq[File], sourceFile : File, compilerFlags : Seq[String], quiet : Boolean = false ) : FunctionWithResultPath
 
     def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], linkFlags : Seq[String], quiet : Boolean = false ) : FunctionWithResultPath
-    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], linkFlags : Seq[String], quiet : Boolean = false ) : FunctionWithResultPath
+    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], linkPaths : Seq[File], linkLibraries : Seq[String], linkFlags : Seq[String],  quiet : Boolean = false ) : FunctionWithResultPath
     def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkFlags : Seq[String], linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
 }
 
@@ -490,10 +490,10 @@ abstract class NativeBuild extends Build
         private def buildLib( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]], isShared : Boolean, subProjectBuilders : SubProjectBuilders = Seq() ) =
         {
             val defaultSettings = Seq(
-                exportedLibs <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkFlags, streams) map
-                { case (c, projName, bd, scd, ofs, lfs, s) =>
+                exportedLibs <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, linkDirectories, nativeLibraries, linkFlags, streams) map
+                { case (c, projName, bd, scd, ofs, lds, nls, lfs, s) =>
                 
-                    val blf = if ( isShared ) c.buildSharedLibrary( s.log, bd, projName, ofs, lfs )
+                    val blf = if ( isShared ) c.buildSharedLibrary( s.log, bd, projName, ofs, lds, nls, lfs )
                     else c.buildStaticLibrary( s.log, bd, projName, ofs, lfs )
                     
                     Seq( blf.runIfNotCached( scd, ofs ) )
