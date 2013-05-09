@@ -97,9 +97,9 @@ object PlatformChecks
         tryCompileAndLinkImpl( log, compiler, compileType, true, minimalProgram, includePaths, linkPaths, linkLibraries )
     
     
-    def testForHeader( log : Logger, compiler : Compiler, compileType : CompileType, headerName : String ) =
+    def testForHeader( log : Logger, compiler : Compiler, compileType : CompileType, headerName : String, includePaths : Seq[File] = Seq() ) =
     {
-        tryCompile( log, compiler, compileType, "#include \"%s\"\n".format( headerName ) )
+        tryCompile( log, compiler, compileType, "#include \"%s\"\n".format( headerName ), includePaths=includePaths )
     }
     
     
@@ -156,9 +156,9 @@ object PlatformChecks
     
     def testHeaderParse( log : Logger, compiler : Compiler ) = testExtractHeaders( log, compiler, CCTest, "#include <stdint.h>", Set("stdint.h") )
     
-    def requireHeader( log : Logger, compiler : Compiler, compileType : CompileType, headerName : String )
+    def requireHeader( log : Logger, compiler : Compiler, compileType : CompileType, headerName : String, includePaths : Seq[File] = Seq() )
     {
-        assert( PlatformChecks.testForHeader( log, compiler, compileType, headerName ), "Unable to find required header: " + headerName )
+        assert( PlatformChecks.testForHeader( log, compiler, compileType, headerName, includePaths ), "Unable to find required header: " + headerName )
         log.success( "Required header found: " + headerName )
     }
     

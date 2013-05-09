@@ -51,22 +51,22 @@ case class GccLikeCompiler( override val config : Config, override val buildType
         reportFileGenerated( log, outputFile, quiet )
     }
     
-    def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean ) =
+    def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], linkFlags : Seq[String], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".a") )
         { outputFile =>
         
-            val arCmd = Seq[String]( archiverExe.toString, "-c", "-r", outputFile.toString ) ++ objectFiles.map( _.toString )
+            val arCmd = Seq[String]( archiverExe.toString, "-c", "-r", outputFile.toString ) ++ linkFlags ++ objectFiles.map( _.toString )
 
             runProcess( log, arCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
             
             reportFileGenerated( log, outputFile, quiet )
         }
         
-    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean ) =
+    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], linkFlags : Seq[String], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
         { outputFile =>
         
-            val cmd = Seq[String]( cxxExe.toString, "-shared", "-o", outputFile.toString ) ++ objectFiles.map( _.toString )
+            val cmd = Seq[String]( cxxExe.toString, "-shared", "-o", outputFile.toString ) ++ linkFlags ++ objectFiles.map( _.toString )
 
             runProcess( log, cmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(":")), quiet )
             
@@ -127,22 +127,22 @@ case class VSCompiler( override val config : Config, override val buildTypeTrait
         reportFileGenerated( log, outputFile, quiet )
     }
 
-    def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean ) =
+    def buildStaticLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], linkFlags : Seq[String], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / (libName + ".lib") )
         { outputFile =>
 
-            val arCmd = Seq[String]( archiverExe.toString, "/nologo", "/OUT:" + outputFile.toString ) ++ objectFiles.map( _.toString )
+            val arCmd = Seq[String]( archiverExe.toString, "/nologo", "/OUT:" + outputFile.toString ) ++ linkFlags ++ objectFiles.map( _.toString )
             
             runProcess( log, arCmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 
             reportFileGenerated( log, outputFile, quiet )
         }
 
-    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], quiet : Boolean ) =
+    def buildSharedLibrary( log : Logger, buildDirectory : File, libName : String, objectFiles : Seq[File], linkFlags : Seq[String], quiet : Boolean ) =
         FunctionWithResultPath( buildDirectory / ("lib" + libName + ".so") )
         { outputFile =>
 
-            val cmd = Seq[String]( cxxExe.toString, "/nologo", "/DLL", "/OUT:" + outputFile.toString ) ++ objectFiles.map( _.toString )
+            val cmd = Seq[String]( cxxExe.toString, "/nologo", "/DLL", "/OUT:" + outputFile.toString ) ++ linkFlags ++ objectFiles.map( _.toString )
 
             runProcess( log, cmd, buildDirectory, Seq("PATH" -> toolPaths.mkString(";")), quiet )
 

@@ -46,6 +46,8 @@ object TestBuild extends NativeDefaultBuild
         
         assert( !testForTypeSize( log, config.compiler, CXXTest, "int32_t", 3, Seq("stdint.h") ) )
         assert( !testForTypeSize( log, config.compiler, CXXTest, "int32_t", 5, Seq("stdint.h") ) )
+        
+        requireHeader( log, config.compiler, CXXTest, "boost/python.hpp", includePaths=Seq(file("/usr/include/python2.7")) )
     }
     
     lazy val config = NativeProject( "config", file("."), Seq(
@@ -116,6 +118,22 @@ object TestBuild extends NativeDefaultBuild
             }
         ) )
         .nativeDependsOn( checkLib, library1, config )
+        
+    lazy val boostPython = SharedLibrary( "boostPython", file("boostpython"),
+        Seq(
+            includeDirectories  += file("/usr/include/python2.7"),
+            linkFlags           += "-export-dynamic"
+        ) )
+        
+    lazy val boostPythonTest = NativeProject( "boostPythonTest", file("boostpython"),
+        Seq(
+            test <<= (exportedLibDirectories in boostPython) map
+            { eld =>
+                
+                
+            }
+        ) ).nativeDependsOn( boostPython )
+        
         
     lazy val standardSettings = Defaults.defaultSettings
     
