@@ -21,14 +21,6 @@ object TestBuild extends NativeDefaultBuild
     
     val fooBar = TaskKey[Seq[File]]("all-source-files", "All source files I can find" )
     
-    override def settings = Seq(
-        shellPrompt :=
-        { state =>
-            val projectId = Project.extract(state).currentProject.id
-            val config = state.attributes.get( configKey )
-            "%s|%s:> ".format(config.map { _.conf.name }.getOrElse("None"), projectId )
-        }
-      )
     
     override def checkConfiguration( log : Logger, config : BuildConfiguration ) =
     {
