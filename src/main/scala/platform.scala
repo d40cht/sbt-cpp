@@ -84,6 +84,7 @@ object PlatformChecks
             {
                 case e : java.lang.RuntimeException => 
                 {
+                    log.debug( "Caught exception: " + e )
                     false
                 }
             }

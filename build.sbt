@@ -4,7 +4,7 @@ name := "sbt-cpp"
 
 organization := "org.seacourt.build"
 
-version := "0.0.20"
+version := "0.0.21"
 
 scalaVersion := "2.9.2"
 
@@ -18,7 +18,7 @@ libraryDependencies += "com.sleepycat" % "je" % "4.0.92"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "1.6.1"
 
-scalacOptions ++= Seq( "-deprecation", "-optimize" )
+scalacOptions ++= Seq( "-deprecation" )
 
 
 
