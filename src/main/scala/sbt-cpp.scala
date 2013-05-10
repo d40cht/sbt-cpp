@@ -251,6 +251,7 @@ abstract class NativeBuild extends Build
     val nativeExe = TaskKey[File]("native-exe", "Executable built by this project (if appropriate)" )
     val nativeRun = TaskKey[Unit]("native-run", "Perform a native run of this project" )
     val testProject = TaskKey[Project]("native-test-project", "The test sub-project for this project")
+    val testExtraDependencies = TaskKey[Seq[File]]("native-test-extra-dependencies", "Extra file dependencies of the test (used to calculate when to re-run tests)")
     val nativeTest = TaskKey[Option[(File, File)]]("native-test-run", "Run the native test, returning the files with stdout and stderr respectively")
     val test = TaskKey[Unit]("test", "Run the test associated with this project")
     val runEnvironmentVariables = TaskKey[Seq[(String, String)]]("native-run-env-vars", "Environment variables to be set for test runs")
@@ -554,16 +555,17 @@ abstract class NativeBuild extends Build
         def apply( _name : String, _projectDirectory : File, settings : => Seq[sbt.Project.Setting[_]] ) =
         {
             val defaultSettings = Seq(
-                nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, archiveFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
+                nativeExe               <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, archiveFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
                 { case (c, projName, bd, scd, ofs, afs, lfs, lds, nls, s) =>
                 
                     val blf = c.buildExecutable( s.log, bd, projName, lfs, lds, nls, ofs ++ afs )
                     
                     blf.runIfNotCached( scd, ofs ++ afs )
                 },
-                compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
-                nativeTest <<= (nativeExe, testEnvironmentVariables, stateCacheDirectory, streams) map
-                { case (ncExe, tenvs, scd, s) =>
+                testExtraDependencies   <<= (projectDirectory) map { pd => ((pd / "data") ** "*").get },
+                compile                 <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
+                nativeTest              <<= (nativeExe, testExtraDependencies, testEnvironmentVariables, stateCacheDirectory, streams) map
+                { case (ncExe, teds, tenvs, scd, s) =>
 
                     val resFile = file( ncExe + ".res" )
                     val stdoutFile = file( ncExe + ".stdout" )
@@ -583,7 +585,7 @@ abstract class NativeBuild extends Build
                         
                     }
                     
-                    tcf.runIfNotCached( scd, Seq(ncExe) )
+                    tcf.runIfNotCached( scd, ncExe +: teds )
                     
                     Some( (resFile, stdoutFile) )
                 },
