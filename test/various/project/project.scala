@@ -7,12 +7,28 @@ import org.seacourt.build.NativeDefaultBuild._
 
 import scala.collection.{mutable, immutable}
 
-
+/*object ShellPrompt extends Plugin {
+  override def settings = Seq(
+    shellPrompt := { state =>
+      "sbt (%s)> ".format(Project.extract(state).currentProject.id) }
+  )
+}*/
 
 
 object TestBuild extends NativeDefaultBuild
 {
     import PlatformChecks._
+    
+    val fooBar = TaskKey[Seq[File]]("all-source-files", "All source files I can find" )
+    
+    override def settings = Seq(
+        shellPrompt :=
+        { state =>
+            val projectId = Project.extract(state).currentProject.id
+            val config = state.attributes.get( configKey )
+            "%s|%s:> ".format(config.map { _.conf.name }.getOrElse("None"), projectId )
+        }
+      )
     
     override def checkConfiguration( log : Logger, config : BuildConfiguration ) =
     {

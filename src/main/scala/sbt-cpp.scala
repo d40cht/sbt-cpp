@@ -184,45 +184,6 @@ abstract class NativeBuild extends Build
     
     case class BuildConfiguration( val conf : BuildType, val compiler : Compiler )
     
-    // TODO: Currently not thread/process safe. Fix!
-    case class PlatformConfig private ( private val cacheFile : File, private val configMap : immutable.Map[String, String])
-    {
-        def add( k : String, v : => String )
-        {
-            if ( configMap.contains(k) ) configMap
-            else
-            {
-                val next = new PlatformConfig( cacheFile, configMap + (k -> v) )
-                PlatformConfig.saveState( next )
-                next
-            }
-        }
-        
-        def get(k : String) = configMap.get(k)
-    }
-    
-    object PlatformConfig
-    {
-        def apply( cacheFile: File ) = loadState( cacheFile )
-        
-        private def saveState( platformConfig : PlatformConfig )
-        {
-            val lines = platformConfig.configMap.map { case (k, v) => "%s,%s".format( k, v ) }.mkString("\n")
-            IO.write( platformConfig.cacheFile, lines )
-        }
-        
-        private def loadState( cacheFile : File ) =
-        {
-            val kvp = if ( cacheFile.exists )
-            {
-                val lines = IO.readLines( cacheFile )
-                lines.map( _.split(",").map( _.trim ) ).map( x => (x(0), x(1)) ).toMap
-            }
-            else Map[String, String]()
-            
-            new PlatformConfig( cacheFile, kvp )
-        }
-    }
     
     def configurations : Set[BuildConfiguration]
     
@@ -232,7 +193,6 @@ abstract class NativeBuild extends Build
     def checkConfiguration( log : Logger, env : BuildConfiguration ) = { }
     val compiler = TaskKey[Compiler]("native-compiler")
     val buildConfiguration = TaskKey[BuildConfiguration]("native-build-configuration-key")
-    val nativePlatformConfig = TaskKey[PlatformConfig]("native-platform-config")
     val rootBuildDirectory = TaskKey[File]("native-root-build-dir", "Build root directory (for the config, not the project)")
     val projectBuildDirectory = TaskKey[File]("native-project-build-dir", "Build directory for this config and project")
     val stateCacheDirectory = TaskKey[File]("native-state-cache-dir", "Build state cache directory")
