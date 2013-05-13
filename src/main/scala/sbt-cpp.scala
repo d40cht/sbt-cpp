@@ -184,46 +184,6 @@ abstract class NativeBuild extends Build
     
     case class BuildConfiguration( val conf : BuildType, val compiler : Compiler )
     
-    // TODO: Currently not thread/process safe. Fix!
-    case class PlatformConfig private ( private val cacheFile : File, private val configMap : immutable.Map[String, String])
-    {
-        def add( k : String, v : => String )
-        {
-            if ( configMap.contains(k) ) configMap
-            else
-            {
-                val next = new PlatformConfig( cacheFile, configMap + (k -> v) )
-                PlatformConfig.saveState( next )
-                next
-            }
-        }
-        
-        def get(k : String) = configMap.get(k)
-    }
-    
-    object PlatformConfig
-    {
-        def apply( cacheFile: File ) = loadState( cacheFile )
-        
-        private def saveState( platformConfig : PlatformConfig )
-        {
-            val lines = platformConfig.configMap.map { case (k, v) => "%s,%s".format( k, v ) }.mkString("\n")
-            IO.write( platformConfig.cacheFile, lines )
-        }
-        
-        private def loadState( cacheFile : File ) =
-        {
-            val kvp = if ( cacheFile.exists )
-            {
-                val lines = IO.readLines( cacheFile )
-                lines.map( _.split(",").map( _.trim ) ).map( x => (x(0), x(1)) ).toMap
-            }
-            else Map[String, String]()
-            
-            new PlatformConfig( cacheFile, kvp )
-        }
-    }
-    
     def configurations : Set[BuildConfiguration]
     
     /**
@@ -232,7 +192,6 @@ abstract class NativeBuild extends Build
     def checkConfiguration( log : Logger, env : BuildConfiguration ) = { }
     val compiler = TaskKey[Compiler]("native-compiler")
     val buildConfiguration = TaskKey[BuildConfiguration]("native-build-configuration-key")
-    val nativePlatformConfig = TaskKey[PlatformConfig]("native-platform-config")
     val rootBuildDirectory = TaskKey[File]("native-root-build-dir", "Build root directory (for the config, not the project)")
     val projectBuildDirectory = TaskKey[File]("native-project-build-dir", "Build directory for this config and project")
     val stateCacheDirectory = TaskKey[File]("native-state-cache-dir", "Build state cache directory")
@@ -280,16 +239,38 @@ abstract class NativeBuild extends Build
 
         val updatedAttributes = state.attributes.put( configKey, config )
         
-        val configCheckFile = config.conf.targetDirectory(buildRootDirectory) / "EnvHealthy.txt"
-        
-        if ( !configCheckFile.exists )
-        {
-            checkConfiguration( state.log, config )
-            IO.write( configCheckFile, "HEALTHY" )
-        }
-        
         state.copy( attributes=updatedAttributes )
     }
+    
+    
+    override def settings = super.settings ++ Seq(
+        commands                    ++= (BasicCommands.allBasicCommands :+ setBuildConfigCommand),
+        
+        buildConfiguration          <<= state map
+        { s =>
+            val beo = s.attributes.get( configKey )
+            
+            if ( beo.isEmpty ) sys.error( "Please set a build configuration using the %s command".format(nativeBuildConfigurationCommandName) )
+            
+            val config = beo.get
+            val configCheckFile = config.conf.targetDirectory(buildRootDirectory) / "EnvHealthy.txt"
+            
+            if ( !configCheckFile.exists )
+            {
+                checkConfiguration( s.log, config )
+                IO.write( configCheckFile, "HEALTHY" )
+            }
+            
+            beo.get
+        },
+        
+        shellPrompt :=
+        { state =>
+            val projectId = Project.extract(state).currentProject.id
+            val config = state.attributes.get( configKey )
+            "%s|%s:> ".format(config.map { _.conf.name }.getOrElse("No-config"), projectId )
+        }
+    )
     
     case class NativeProject( val p : Project, val subProjectBuilders : SubProjectBuilders, val dependencies : Seq[ProjectReference] )
     {
@@ -336,17 +317,7 @@ abstract class NativeBuild extends Build
                 name                        := _name,
                 
                 projectDirectory            <<= baseDirectory map { bd => (bd / _projectDirectory.toString) },
-            
-                commands                    ++= (BasicCommands.allBasicCommands :+ setBuildConfigCommand),
-                
-                buildConfiguration          <<= state map
-                { s =>
-                    val beo = s.attributes.get( configKey )
-                    
-                    if ( beo.isEmpty ) sys.error( "Please set a build configuration using the %s command".format(nativeBuildConfigurationCommandName) )
-                    
-                    beo.get
-                },
+
                 
                 //target                    <<= baseDirectory { _ / "target" / "native" },
                 target                      := buildRootDirectory,
