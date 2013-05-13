@@ -137,24 +137,33 @@ object TestBuild extends NativeDefaultBuild
             }
         ) ).nativeDependsOn( boostPython )
         
+    lazy val sharedLibrary1 = SharedLibrary( "libsharedlibrary1", file("sharedlibrary1"),
+        Seq(
+            linkFlags           += "-export-dynamic"
+    ) )
         
-    lazy val standardSettings = Defaults.defaultSettings
-    
-    /*lazy val scalaJNA = Project(
+
+    lazy val scalaJNA = Project(
         id="scalaJNA",
         base=file("scalajna"),
-        settings=standardSettings ++ Seq[Sett](
+        settings=Defaults.defaultSettings ++ Seq[Sett](
             scalaVersion        := "2.9.2",
             
             libraryDependencies += "org.scalatest" %% "scalatest" % "1.6.1",
+            libraryDependencies += "net.java.dev.jna" % "jna" % "3.5.2",
+            fork in Test        := true,
+            exportJars          := true,
+            // When the next version of JNA is released (>3.5.2) it should pick this .so up
+            // from the jar automatically.
+            mappings in (Compile, packageBin) <++= (exportedLibs in sharedLibrary1) map
+            { exportedLibs =>
             
-            (test in Test)      <<= (test in Test).dependsOn( exportedLibs in TestBuild.library2 ),
-            
-            // Needed to set the build environment
-            commands            += setBuildConfigCommand
+                exportedLibs.map { el => el -> "linux-amd64/%s".format( el.getName ) }
+            },
+            javaOptions in Test <+= (exportedLibDirectories in sharedLibrary1) map { elds => "-Djna.library.path=" + elds.mkString(":") }
         )
     )
-    .dependsOn( TestBuild.library2 )*/
+    .dependsOn( TestBuild.sharedLibrary1 )
     
 }
 
