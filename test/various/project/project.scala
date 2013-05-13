@@ -147,9 +147,11 @@ object TestBuild extends NativeDefaultBuild
         
     lazy val sharedLibrary1 = SharedLibrary( "libsharedlibrary1", file("sharedlibrary1"),
         Seq(
-            linkFlags           += "-export-dynamic"
-    ) )
-        
+            linkFlags           += "-export-dynamic",
+            // For the test. Nasty
+            nativeLibraries     ++= Seq( "boost_unit_test_framework" ),
+            cxxCompileFlags     ++= Seq("-DBOOST_TEST_DYN_LINK", "-DBOOST_TEST_MAIN" )
+    ) ) 
 
     lazy val scalaJNA = Project(
         id="scalaJNA",
