@@ -32,8 +32,9 @@ object NativeDefaultBuild
     case object VSCl    extends NativeCompiler
     
     trait TargetPlatform
-    case object LinuxPC     extends TargetPlatform
-    case object WindowsPC   extends TargetPlatform
+    case object LinuxPC         extends TargetPlatform
+    case object WindowsPC       extends TargetPlatform
+    //case object LinuxBeagleBone extends TargetPlatform
 }
 
 class NativeDefaultBuild extends NativeBuild
