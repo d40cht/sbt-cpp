@@ -206,8 +206,7 @@ abstract class NativeBuild extends Build
     val testExtraDependencies = TaskKey[Seq[File]]("native-test-extra-dependencies", "Extra file dependencies of the test (used to calculate when to re-run tests)")
     val nativeTest = TaskKey[Option[(File, File)]]("native-test-run", "Run the native test, returning the files with stdout and stderr respectively")
     val test = TaskKey[Unit]("test", "Run the test associated with this project")
-    val runEnvironmentVariables = TaskKey[Seq[(String, String)]]("native-run-env-vars", "Environment variables to be set for test runs")
-    val testEnvironmentVariables = TaskKey[Seq[(String, String)]]("native-test-env-vars", "Environment variables to be set for test runs")
+    val environmentVariables = TaskKey[Seq[(String, String)]]("native-env-vars", "Environment variables to be set for running programs and tests")
     val cleanAll = TaskKey[Unit]("native-clean-all", "Clean the entire build directory")
     val ccCompileFlags = TaskKey[Seq[String]]("native-cc-flags", "Native C compile flags")
     val cxxCompileFlags = TaskKey[Seq[String]]("native-cxx-flags", "Native C++ compile flags")
@@ -394,9 +393,7 @@ abstract class NativeBuild extends Build
                 sfs.map( sf => toTask( () => (sf, findDependencies(sf)) ) ).join
             },
             
-            runEnvironmentVariables     := Seq(),
-            
-            testEnvironmentVariables    := Seq(),
+            environmentVariables        := Seq(),
             
             watchSources                <++= (ccSourceFilesWithDeps, cxxSourceFilesWithDeps) map
             { (ccsfd, cxxsfd) =>
@@ -460,7 +457,7 @@ abstract class NativeBuild extends Build
             
             testExtraDependencies       <<= (projectDirectory) map { pd => ((pd / "data") ** "*").get },
 
-            nativeTest                  <<= (testExe, testExtraDependencies, testEnvironmentVariables, stateCacheDirectory, projectDirectory, streams) map
+            nativeTest                  <<= (testExe, testExtraDependencies, environmentVariables, stateCacheDirectory, projectDirectory, streams) map
             {
                 case (None, _, _, _, _, _)              => None
                 
@@ -540,7 +537,7 @@ abstract class NativeBuild extends Build
             compile                     <<= exportedLibs map { nc => sbt.inc.Analysis.Empty }
         ) ) ++ inConfig(Test)(testSettings)
         
-        val defaultSettings = baseSettings ++ inConfig(Compile)( Seq(
+        lazy val nativeExeSettings = baseSettings ++ inConfig(Compile)( Seq(
             nativeExe <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, archiveFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
             { case (c, projName, bd, scd, ofs, afs, lfs, lds, nls, s) =>
             
@@ -551,7 +548,7 @@ abstract class NativeBuild extends Build
             compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
             run <<= inputTask { (argTask: TaskKey[Seq[String]]) =>
                 
-                (argTask, runEnvironmentVariables, nativeExe, projectDirectory, streams) map
+                (argTask, environmentVariables, nativeExe, projectDirectory, streams) map
                 { case (args, renvs, ncExe, pd, s) =>
                 
                     val res = Process( ncExe.toString +: args, pd, renvs : _* ) !
