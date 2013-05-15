@@ -539,7 +539,7 @@ abstract class NativeBuild extends Build
         ) ++ testSettings
         
         lazy val nativeExeSettings = baseSettings ++ Seq(
-            nativeExe in Compile <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, archiveFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
+            nativeExe in Compile <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles in Compile, archiveFiles in Compile, linkFlags in Compile, linkDirectories in Compile, nativeLibraries in Compile, streams) map
             { case (c, projName, bd, scd, ofs, afs, lfs, lds, nls, s) =>
             
                 val blf = c.buildExecutable( s.log, bd, projName, lfs, lds, nls, ofs ++ afs )
@@ -549,7 +549,7 @@ abstract class NativeBuild extends Build
             compile in Compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
             run <<= inputTask { (argTask: TaskKey[Seq[String]]) =>
                 
-                (argTask, environmentVariables, nativeExe, projectDirectory, streams) map
+                (argTask, environmentVariables in Compile, nativeExe in Compile, projectDirectory, streams) map
                 { case (args, renvs, ncExe, pd, s) =>
                 
                     val res = Process( ncExe.toString +: args, pd, renvs : _* ) !
