@@ -9,6 +9,7 @@ import scala.collection.{mutable, immutable}
   * Class to handle calling a function only if its input files are newer
   * than the file it will create
   */
+
 class FunctionWithResultPath( val resultPath : File, val fn : () => File )
 {
     import java.security.MessageDigest

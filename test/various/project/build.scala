@@ -121,7 +121,7 @@ object TestBuild extends NativeDefaultBuild
         
     lazy val boostPythonTest = NativeProject( "boostPythonTest", file("boostpythontest"),
         baseSettings ++ Seq(
-            test <<= (exportedLibDirectories in boostPython, projectDirectory) map
+            test <<= (exportedLibDirectories in boostPython, projectDirectory in Compile) map
             { (eld, pd) =>
                 
                 val testEnvs = Seq( "PYTHONPATH" -> eld.mkString(":") )

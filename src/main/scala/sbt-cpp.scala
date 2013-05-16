@@ -434,11 +434,12 @@ abstract class NativeBuild extends Build
         ) )
         
         def testSettings = inConfig(Test)( buildSettings ++ Seq[Sett](
-            includeDirectories          <<= (projectDirectory) map { pd => Seq(pd / "test" / "include") },
+            projectDirectory            <<= (projectDirectory in Compile) map { pd => pd / "test" },
+            includeDirectories          <<= (projectDirectory) map { pd => Seq(pd / "include") },
             includeDirectories          <++= (includeDirectories in Compile),
             includeDirectories          <++= (exportedIncludeDirectories in Compile),
             archiveFiles                <++= (archiveFiles in Compile),
-            sourceDirectories           <<= (projectDirectory) map { pd => Seq(pd / "test" / "source") },
+            sourceDirectories           <<= (projectDirectory) map { pd => Seq(pd / "source") },
             
             testExe                   <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, exportedLibs in Compile, archiveFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
             { case (c, projName, bd, scd, ofs, pls, afs, lfs, lds, nls, s) =>
@@ -450,7 +451,7 @@ abstract class NativeBuild extends Build
                 }
                 else
                 {
-                    val blf = c.buildExecutable( s.log, bd, projName, lfs, lds, nls, ofs ++ pls ++ afs )
+                    val blf = c.buildExecutable( s.log, bd, projName + "_test", lfs, lds, nls, ofs ++ pls ++ afs )
                     
                     Some( blf.runIfNotCached( scd, ofs ++ afs ) )
                 }                    
@@ -458,11 +459,11 @@ abstract class NativeBuild extends Build
             
             testExtraDependencies       <<= (projectDirectory) map { pd => ((pd / "data") ** "*").get },
 
-            nativeTest                  <<= (testExe, testExtraDependencies, environmentVariables, stateCacheDirectory, projectDirectory, streams) map
+            nativeTest                  <<= (testExe, testExtraDependencies, environmentVariables in Test, stateCacheDirectory, projectDirectory, streams) map
             {
-                case (None, _, _, _, _, _)              => None
+                case (None, _, _, _, _, _)                  => None
                 
-                case (Some(tExe), teds, tenvs, scd, pd, s) =>
+                case (Some(tExe), teds, tenvs, scd, pd, s)  =>
                 {
                     val resFile = file( tExe + ".res" )
                     val stdoutFile = file( tExe + ".stdout" )
@@ -520,26 +521,26 @@ abstract class NativeBuild extends Build
                 
                 Seq( blf.runIfNotCached( scd, ofs ) )
             },
-            exportedIncludeDirectories  <<= (projectDirectory) map { pd => Seq(pd / "interface") },
+            exportedIncludeDirectories  <<= (projectDirectory in Compile) map { pd => Seq(pd / "interface") },
             exportedLibDirectories      <<= exportedLibs map { _.map( _.getParentFile ).distinct },
             compile in Compile          <<= exportedLibs map { nc => sbt.inc.Analysis.Empty }
         ) ++ testSettings
         
-        lazy val sharedLibrarySettings = baseSettings ++ Seq(
-            exportedLibs <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles in Compile, archiveFiles in Compile, linkDirectories in Compile, nativeLibraries in Compile, linkFlags in Compile, streams) map
+        lazy val sharedLibrarySettings = baseSettings ++ inConfig(Compile)( Seq(
+            exportedLibs <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, archiveFiles, linkDirectories, nativeLibraries, linkFlags, streams) map
             { case (c, projName, bd, scd, ofs, ars, lds, nls, lfs, s) =>
             
                 val blf = c.buildSharedLibrary( s.log, bd, projName, ofs ++ ars, lds, nls, lfs )
                 
                 Seq( blf.runIfNotCached( scd, ofs ) )
             },
-            exportedIncludeDirectories  <<= (projectDirectory) map { pd => Seq(pd / "interface") },
+            exportedIncludeDirectories  <<= (projectDirectory in Compile) map { pd => Seq(pd / "interface") },
             exportedLibDirectories      <<= exportedLibs map { _.map( _.getParentFile ).distinct },
             compile in Compile          <<= exportedLibs map { nc => sbt.inc.Analysis.Empty }
-        ) ++ testSettings
+        ) ) ++ testSettings
         
-        lazy val nativeExeSettings = baseSettings ++ Seq(
-            nativeExe in Compile <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles in Compile, archiveFiles in Compile, linkFlags in Compile, linkDirectories in Compile, nativeLibraries in Compile, streams) map
+        lazy val nativeExeSettings = baseSettings ++ inConfig(Compile)( Seq(
+            nativeExe in Compile <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, archiveFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
             { case (c, projName, bd, scd, ofs, afs, lfs, lds, nls, s) =>
             
                 val blf = c.buildExecutable( s.log, bd, projName, lfs, lds, nls, ofs ++ afs )
@@ -549,7 +550,7 @@ abstract class NativeBuild extends Build
             compile in Compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
             run <<= inputTask { (argTask: TaskKey[Seq[String]]) =>
                 
-                (argTask, environmentVariables in Compile, nativeExe in Compile, projectDirectory, streams) map
+                (argTask, environmentVariables, nativeExe, projectDirectory, streams) map
                 { case (args, renvs, ncExe, pd, s) =>
                 
                     val res = Process( ncExe.toString +: args, pd, renvs : _* ) !
@@ -557,13 +558,13 @@ abstract class NativeBuild extends Build
                     if ( res != 0 ) sys.error( "Non-zero exit code: " + res.toString )
                 }
             }
-        )
+        ) )
             
         def apply( _name : String, _projectDirectory : File, _settings : => Seq[sbt.Project.Setting[_]] ) =
         {
             Project( id=_name, base=_projectDirectory, settings=Seq(
                 name                        := _name,        
-                projectDirectory            <<= baseDirectory map { bd => (bd / _projectDirectory.toString) } ) ++ _settings )
+                projectDirectory in Compile <<= baseDirectory map { bd => (bd / _projectDirectory.toString) } ) ++ _settings )
         }
     }
 }
