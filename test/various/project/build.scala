@@ -136,6 +136,10 @@ object TestBuild extends NativeDefaultBuild
             nativeLibraries in Test     ++= Seq( "boost_unit_test_framework" ),
             cxxCompileFlags in Test     ++= Seq("-DBOOST_TEST_DYN_LINK", "-DBOOST_TEST_MAIN" )
     ) ) 
+    
+    lazy val nativeexe = NativeProject( "nativeexe", file("nativeexe"),
+        nativeExeSettings
+    )
 
     lazy val scalaJNA = Project(
         id="scalaJNA",
