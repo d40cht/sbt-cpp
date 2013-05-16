@@ -108,8 +108,10 @@ trait CompilerWithConfig extends Compiler
   */
 trait BuildTypeTrait
 {
-    def name        : String
-    def pathDirs    : Seq[String]
+    def name            : String
+    def pathDirs        : Seq[String]
+    
+    def isCrossCompile  = false
     
     def targetDirectory( rootDirectory : File ) = pathDirs.foldLeft( rootDirectory )( _ / _ )
 }
@@ -459,11 +461,9 @@ abstract class NativeBuild extends Build
             
             testExtraDependencies       <<= (projectDirectory) map { pd => ((pd / "data") ** "*").get },
 
-            nativeTest                  <<= (testExe, testExtraDependencies, environmentVariables in Test, stateCacheDirectory, projectDirectory, streams) map
+            nativeTest                  <<= (testExe, testExtraDependencies, environmentVariables in Test, stateCacheDirectory, projectDirectory, buildConfiguration, streams) map
             {
-                case (None, _, _, _, _, _)                  => None
-                
-                case (Some(tExe), teds, tenvs, scd, pd, s)  =>
+                case (Some(tExe), teds, tenvs, scd, pd, bc, s) if !bc.conf.isCrossCompile =>
                 {
                     val resFile = file( tExe + ".res" )
                     val stdoutFile = file( tExe + ".stdout" )
@@ -486,7 +486,8 @@ abstract class NativeBuild extends Build
                     tcf.runIfNotCached( scd, tExe +: teds )
                     
                     Some( (resFile, stdoutFile) )
-                }                    
+                }
+                case _ => None                    
             },
             
             compile                     <<= (testExe) map { nc => sbt.inc.Analysis.Empty },
