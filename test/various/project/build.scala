@@ -139,7 +139,7 @@ object TestBuild extends NativeDefaultBuild
     
     lazy val nativeexe = NativeProject( "nativeexe", file("nativeexe"),
         nativeExeSettings
-    )
+    ).nativeDependsOn( library2, library1, checkLib )
 
     lazy val scalaJNA = Project(
         id="scalaJNA",

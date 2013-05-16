@@ -526,8 +526,8 @@ abstract class NativeBuild extends Build
             compile in Compile          <<= exportedLibs map { nc => sbt.inc.Analysis.Empty }
         ) ++ testSettings
         
-        lazy val sharedLibrarySettings = baseSettings ++ inConfig(Compile)( Seq(
-            exportedLibs <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, archiveFiles, linkDirectories, nativeLibraries, linkFlags, streams) map
+        lazy val sharedLibrarySettings = baseSettings ++ Seq(
+            exportedLibs <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles in Compile, archiveFiles in Compile, linkDirectories in Compile, nativeLibraries in Compile, linkFlags in Compile, streams) map
             { case (c, projName, bd, scd, ofs, ars, lds, nls, lfs, s) =>
             
                 val blf = c.buildSharedLibrary( s.log, bd, projName, ofs ++ ars, lds, nls, lfs )
@@ -537,7 +537,7 @@ abstract class NativeBuild extends Build
             exportedIncludeDirectories  <<= (projectDirectory in Compile) map { pd => Seq(pd / "interface") },
             exportedLibDirectories      <<= exportedLibs map { _.map( _.getParentFile ).distinct },
             compile in Compile          <<= exportedLibs map { nc => sbt.inc.Analysis.Empty }
-        ) ) ++ testSettings
+        )++ testSettings
         
         lazy val nativeExeSettings = baseSettings ++ inConfig(Compile)( Seq(
             nativeExe in Compile <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, archiveFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
