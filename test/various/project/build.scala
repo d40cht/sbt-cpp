@@ -112,7 +112,7 @@ object TestBuild extends NativeDefaultBuild
         ) )
         .nativeDependsOn( checkLib, library1, config )
         
-    lazy val boostPython = NativeProject( "boostPython", file("boostpython"),
+    /*lazy val boostPython = NativeProject( "boostPython", file("boostpython"),
         sharedLibrarySettings ++ Seq(
             includeDirectories in Compile  += file("/usr/include/python2.7"),
             nativeLibraries in Compile     ++= Seq( "boost_python" ),
@@ -128,11 +128,17 @@ object TestBuild extends NativeDefaultBuild
                 
                 Process( Seq("/usr/bin/python", (pd / "test.py").toString), pd, testEnvs : _* ) !!
             }
-        ) ).nativeDependsOn( boostPython )
+        ) ).nativeDependsOn( boostPython )*/
         
     lazy val sharedLibrary1 = NativeProject( "libsharedlibrary1", file("sharedlibrary1"),
         sharedLibrarySettings ++ Seq(
-            linkFlags in Compile        += "-export-dynamic",
+            linkFlags in Compile        <++= buildConfiguration map
+            { _.conf.compiler match
+                {
+                    case Gcc | Clang => Seq("-export-dynamic")
+                    case VSCl        => Seq()
+                }
+            },
             nativeLibraries in Test     ++= Seq( "boost_unit_test_framework" ),
             cxxCompileFlags in Test     ++= Seq("-DBOOST_TEST_DYN_LINK", "-DBOOST_TEST_MAIN" )
     ) ) 
