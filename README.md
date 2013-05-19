@@ -10,6 +10,7 @@ A plugin for [sbt](http://www.scala-sbt.org/) to enable cross-platform native (c
 * Sbt itself is extremely thoughtfully designed, and uses the Scala language in all build directive files. As a result you have the power (and libraries) of an extensible build system backed by a mature multi-paradigm programming language (in common, for instance, with [Scons](http://www.scons.org/) which uses python for build directive files).
 * Scala is statically typed, which means that sbt compiles your build directive files before running a build. This allows the tool to catch considerably more errors than is possible with a build tool based around a dynamically typed language (e.g. Python). This also means that a large class of problems with infrequently used targets are caught without the target having to be built/run.
 * Scala runs on the Java virtual machine, defering many platform-specific problems in build construction (filesystem paths, running external processes etc) to the Java runtime.
+* Sbt-cpp aims to stick as closely as possible to the principles and conventions of sbt, to make as much use of existing sbt infrastructure and documentation - hopefully benefiting both developers and users of the system and providing a more coherent experience.
 
 Before getting started with sbt-cpp, it is worthwhile getting to grips with the basic concepts of sbt itself, outlined in some detail in the getting started section of the sbt website [here](http://www.scala-sbt.org/release/docs/Getting-Started/Welcome.html).
 
@@ -90,4 +91,85 @@ Having said the above, sbt-cpp is currently in deployment in at least one commer
 
 ## Detailed documentation
 
-To come. For now see [here](test/various/project/build.scala) for a more detailed example project showing some of the currently existing functionality.
+* To come.
+* For now see [here](test/various/project/build.scala) for a more detailed example project showing some of the currently existing functionality.
+
+## Per user/machine config overrides
+
+* In addition to directives in scala for describing the build, sbt-cpp allows additional per-user overrides of standard configuration using the [Typesafe](http://typesafe.com/) [config](https://github.com/typesafehub/config) library.
+* Per-build overrides can be placed in 'build.conf' and checked in to a particular project repo. Per-user/machine overrides can be placed in 'user.conf', overriding all other config.
+* An example config for the simple default build can be found [here](src/main/resources/reference.conf) with an extract for Gcc on Linux below:
+
+```
+Gcc.LinuxPC
+{
+    compilerCommon =
+    {
+        toolPaths           = ["/usr/bin"]
+        includePaths        = []
+        libraryPaths        = []
+        ccExe               = "gcc"
+        cxxExe              = "g++"
+        archiver            = "ar"
+        linker              = "g++"
+        
+        ccFlags             = ["-DLINUX", "-DGCC"]
+        cxxFlags            = ["-DLINUX", "-DGCC"]
+        linkFlags           = []
+    }
+    
+    Debug   = ${Gcc.LinuxPC.compilerCommon}
+    Release = ${Gcc.LinuxPC.compilerCommon}
+    
+    Debug
+    {
+        ccFlags     = ${Gcc.LinuxPC.compilerCommon.ccFlags} ["-g", "-DDEBUG"]
+        cxxFlags    = ${Gcc.LinuxPC.compilerCommon.cxxFlags} ["-g", "-DDEBUG"]
+    }
+    
+    Release
+    {
+        ccFlags     = ${Gcc.LinuxPC.compilerCommon.ccFlags} ["-O2", "-DRELEASE"]
+        cxxFlags    = ${Gcc.LinuxPC.compilerCommon.cxxFlags} ["-O2", "-DRELEASE"]
+    }
+}
+```
+
+
+## Native-specific keys
+
+A list of the keys specific to sbt-cpp (for sbt aficionados) and their uses (some of which should probably be folded in to their sbt equivalents):
+
+```
+val exportedLibs = TaskKey[Seq[File]]("native-exported-libs", "All libraries exported by this project" )
+val exportedLibDirectories = TaskKey[Seq[File]]("native-exported-lib-directories", "All library directories exported by this project" )
+val exportedIncludeDirectories = TaskKey[Seq[File]]("native-exported-include-directories", "All include directories exported by this project" )
+
+val rootBuildDirectory = TaskKey[File]("native-root-build-dir", "Build root directory (for the config, not the project)")
+val projectBuildDirectory = TaskKey[File]("native-project-build-dir", "Build directory for this config and project")
+val stateCacheDirectory = TaskKey[File]("native-state-cache-dir", "Build state cache directory")
+val projectDirectory = TaskKey[File]("native-project-dir", "Project directory")
+val sourceDirectories = TaskKey[Seq[File]]("native-source-dirs", "Source directories")
+val includeDirectories = TaskKey[Seq[File]]("native-include-dirs", "Include directories")
+val systemIncludeDirectories = TaskKey[Seq[File]]("native-system-include-dirs", "System include directories")
+val linkDirectories = TaskKey[Seq[File]]("native-link-dirs", "Link directories")
+val nativeLibraries = TaskKey[Seq[String]]("native-libraries", "All native library dependencies for this project")
+val ccSourceFiles = TaskKey[Seq[File]]("native-cc-source-files", "All C source files for this project")
+val cxxSourceFiles = TaskKey[Seq[File]]("native-cxx-source-files", "All C++ source files for this project")
+val ccSourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("native-cc-source-files-with-deps", "All C source files with dependencies for this project")
+val cxxSourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("native-cxx-source-files-with-deps", "All C++ source files with dependencies for this project")
+val objectFiles = TaskKey[Seq[File]]("native-object-files", "All object files for this project" )
+val archiveFiles = TaskKey[Seq[File]]("native-archive-files", "All archive files for this project, specified by full path" )
+val nativeExe = TaskKey[File]("native-exe", "Executable built by this project (if appropriate)" )
+val testExe = TaskKey[Option[File]]("native-test-exe", "Test executable built by this project (if appropriate)" )
+val nativeRun = TaskKey[Unit]("native-run", "Perform a native run of this project" )
+val testProject = TaskKey[Project]("native-test-project", "The test sub-project for this project")
+val testExtraDependencies = TaskKey[Seq[File]]("native-test-extra-dependencies", "Extra file dependencies of the test (used to calculate when to re-run tests)")
+val nativeTest = TaskKey[Option[(File, File)]]("native-test-run", "Run the native test, returning the files with stdout and stderr respectively")
+val test = TaskKey[Unit]("test", "Run the test associated with this project")
+val environmentVariables = TaskKey[Seq[(String, String)]]("native-env-vars", "Environment variables to be set for running programs and tests")
+val cleanAll = TaskKey[Unit]("native-clean-all", "Clean the entire build directory")
+val ccCompileFlags = TaskKey[Seq[String]]("native-cc-flags", "Native C compile flags")
+val cxxCompileFlags = TaskKey[Seq[String]]("native-cxx-flags", "Native C++ compile flags")
+val linkFlags = TaskKey[Seq[String]]("native-link-flags", "Native link flags")
+```
