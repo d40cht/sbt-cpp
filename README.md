@@ -1,4 +1,3 @@
-
 # sbt-cpp
 
 A plugin for [sbt](http://www.scala-sbt.org/) to enable cross-platform native (c/c++) builds.
@@ -19,7 +18,11 @@ A plugin for [sbt](http://www.scala-sbt.org/) to enable cross-platform native (c
 * Whilst having the ambitions to match the functionality of an established contender such as CMake (and providing a much more powerful scripting language), it currently has one main developer.
 * The aforementioned developer currently only has access to a limited number of platforms and compilers at the moment, being:
  1. Various Linux variants (on ARM and x86) with Gcc and Clang. Both native and cross-compiling.
- 2. Windows (7) with Visual Studio Cygwin and Mingw.
+ 2. Windows 7 with Visual Studio Cygwin and Mingw.
+* Currently sbt-cpp is auto-built using Travis CI, which whilst wonderful, only currently supports Linux builds for open-source projects.
+
+Having said the above, sbt-cpp is currently in deployment in at least one commercial environment with a reasonably complex multi-platform codebase (including ARM cross-compilation).
+Any work to extend the tool or offers of more rich environments for autobuild would be very gratefully accepted.
 
 
 ## Sbt-cpp quickstart
@@ -28,9 +31,8 @@ A plugin for [sbt](http://www.scala-sbt.org/) to enable cross-platform native (c
 * The 'hello world' of sbt-cpp can be found in samples/helloworld. This contains:
  1. source/main.cpp, containing the standard C++ hello world example:
  
-     <code>
-         #include <iostream>
-
+     ```
+        #include <iostream>
 
         int main( int argc, char** argv )
         {
@@ -38,11 +40,11 @@ A plugin for [sbt](http://www.scala-sbt.org/) to enable cross-platform native (c
             
             return 0;
         }
-     </code>
+     ```
  
  2. project/build.scala, containing the directives for a single executable project:
  
-     <code>
+     ```
         import sbt._
         import Keys._
         import org.seacourt.build._
@@ -50,11 +52,9 @@ A plugin for [sbt](http://www.scala-sbt.org/) to enable cross-platform native (c
 
         object TestBuild extends NativeDefaultBuild
         {
-            
-            
             lazy val check = NativeProject( "helloworld", file("./"), settings=nativeExeSettings )
         }
-     </code>
+     ```
      
  * To build a debug executable for Linux using Gcc, you would complete the following simple steps (from the root directory of the project):
   1. Execute 'sbt' from the command prompt to enter the build system shell.
@@ -80,4 +80,4 @@ A plugin for [sbt](http://www.scala-sbt.org/) to enable cross-platform native (c
 
 ## Detailed documentation
 
-To come. For now see [here](blob/master/test/various/project/build.scala) for a more detailed example project.
+To come. For now see [here](test/various/project/build.scala) for a more detailed example project.
