@@ -43,7 +43,7 @@ Having said the above, sbt-cpp is currently in deployment in at least one commer
         }
      ```
  
- 2. project/build.scala, containing the directives for a single executable project:
+ 2. project/build.scala, containing the directives for a single executable project (clearly there are currently too many imports required and there should be consolidation):
  
      ```
         import sbt._
@@ -63,9 +63,9 @@ Having said the above, sbt-cpp is currently in deployment in at least one commer
   3. Execute 'compile' from the shell to build.
   4. Execute 'run Bob' from the shell to run the program and see the line:
   
-  <pre>Hello world from Bob</pre>
+     <pre>Hello world from Bob</pre>
   
-  appear on the console.
+     appear on the console.
   
  * As well as support for building simple single-project executables (settings=nativeExeSettings), sbt-cpp currently has support for (at varying stages of development):
   + Static and shared libraries.
