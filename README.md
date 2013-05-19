@@ -4,13 +4,14 @@ A plugin for [sbt](http://www.scala-sbt.org/) to enable cross-platform native (c
 
 [![Build Status](https://travis-ci.org/d40cht/sbt-cpp.png)](https://travis-ci.org/d40cht/sbt-cpp)
 
-## Concepts
+## Introduction
 
-* Sbt-cpp is a cross-platform native build system, constructed on top of [sbt](http://www.scala-sbt.org/) an existing and mature build system for Scala and Java. Sbt implements core build-system concepts in a way that is sufficiently generic that a large proportion of its functionality can be re-used in the context of native builds.
-* Sbt itself is extremely thoughtfully designed, and uses the Scala language in all build directive files. As a result you have the power (and libraries) of a mature and multi-paradigm programming language (in common, for instance, with [Scons](http://www.scons.org/) which uses python for build directive files).
+* Sbt-cpp is a cross-platform native build system, constructed on top of [sbt](http://www.scala-sbt.org/): an existing and mature build system for Scala and Java. Sbt implements core build-system concepts in a way that is sufficiently generic that a large proportion of its functionality can be re-used in the context of native builds.
+* Sbt itself is extremely thoughtfully designed, and uses the Scala language in all build directive files. As a result you have the power (and libraries) of an extensible build system backed by a mature multi-paradigm programming language (in common, for instance, with [Scons](http://www.scons.org/) which uses python for build directive files).
 * Scala is statically typed, which means that sbt compiles your build directive files before running a build. This allows the tool to catch considerably more errors than is possible with a build tool based around a dynamically typed language (e.g. Python). This also means that a large class of problems with infrequently used targets are caught without the target having to be built/run.
 * Scala runs on the Java virtual machine, defering many platform-specific problems in build construction (filesystem paths, running external processes etc) to the Java runtime.
-* Before getting started with sbt-cpp, it is worthwhile getting to grips with the basic concepts of sbt itself, outlined in some detail in the getting started section of the sbt website [here](http://www.scala-sbt.org/release/docs/Getting-Started/Welcome.html).
+
+Before getting started with sbt-cpp, it is worthwhile getting to grips with the basic concepts of sbt itself, outlined in some detail in the getting started section of the sbt website [here](http://www.scala-sbt.org/release/docs/Getting-Started/Welcome.html).
 
 ## Limitations
 
@@ -21,8 +22,7 @@ A plugin for [sbt](http://www.scala-sbt.org/) to enable cross-platform native (c
  2. Windows 7 with Visual Studio Cygwin and Mingw.
 * Currently sbt-cpp is auto-built using Travis CI, which whilst wonderful, only currently supports Linux builds for open-source projects.
 
-Having said the above, sbt-cpp is currently in deployment in at least one commercial environment with a reasonably complex multi-platform codebase (including ARM cross-compilation).
-Any work to extend the tool or offers of more rich environments for autobuild would be very gratefully accepted.
+Having said the above, sbt-cpp is currently in deployment in at least one commercial environment with a reasonably complex multi-platform codebase. Any work to extend the tool, or offers of more rich environments for autobuild would be very gratefully accepted.
 
 
 ## Sbt-cpp quickstart
@@ -77,7 +77,17 @@ Any work to extend the tool or offers of more rich environments for autobuild wo
   + Parallel builds.
   + Incremental builds.
   + Cross-compilation.
+  
+ * Support is intended for the following, as time and/or relevant hardware become available:
+  + Additional platforms: Mac OSX, Android and iOS for starters.
+  + Additional compilers: Intel compiler, Oracle Solaris studio etc.
+  + IDE support (Visual studio, Eclipse CDT).
+  + External build system support (Make etc).
+  + Auto-detection of compilers and build environments.
+  + Auto-detection and configuration of libraries (e.g. Boost) and tools (e.g. Python).
+  + Documentation builds (e.g. Doxygen).
+  + Installer/package generation.
 
 ## Detailed documentation
 
-To come. For now see [here](test/various/project/build.scala) for a more detailed example project.
+To come. For now see [here](test/various/project/build.scala) for a more detailed example project showing some of the currently existing functionality.
