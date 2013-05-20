@@ -76,7 +76,9 @@ The 'hello world' of sbt-cpp can be found in [samples/helloworld](samples/hellow
 
 An example of a static library and a simple test for that library can be found in [samples/simpletest](samples/simpletest). The main files are shown below
 
-[project/build.scala](samples/simpletest/project/build.scala). Notice that this is essentially the same as for the helloworld project, with the exception that settings are set to 'staticLibrarySettings'.
+[project/build.scala](samples/simpletest/project/build.scala).
+
+Notice that this is essentially the same as for the helloworld project, with the exception that settings are set to 'staticLibrarySettings'.
 
     ```
         import sbt._
@@ -90,6 +92,8 @@ An example of a static library and a simple test for that library can be found i
     ```
 
 [source/library.cpp](samples/simpletest/source/library.cpp)
+
+A simple and pointless implementation of multiplication.
 
     ```
         #include "library.hpp"
@@ -110,6 +114,8 @@ An example of a static library and a simple test for that library can be found i
     ```
     
 [test/source/test.cpp](samples/simpletest/test/source/test.cpp)
+
+A test for the above, containing a deliberate mistake.
 
     ```
         #include "library.hpp"
