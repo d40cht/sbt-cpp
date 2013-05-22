@@ -397,12 +397,6 @@ abstract class NativeBuild extends Build
             
             environmentVariables        := Seq(),
             
-            watchSources                <++= (ccSourceFilesWithDeps, cxxSourceFilesWithDeps) map
-            { (ccsfd, cxxsfd) =>
-            
-                (ccsfd ++ cxxsfd).flatMap { case (sf, deps) => (sf +: deps.toList) }.toList.distinct
-            },
-            
             objectFiles                 <<= (compiler, projectBuildDirectory, stateCacheDirectory, includeDirectories, systemIncludeDirectories, ccSourceFilesWithDeps, cxxSourceFilesWithDeps, ccCompileFlags, cxxCompileFlags, streams) flatMap
             {
                 
@@ -512,7 +506,18 @@ abstract class NativeBuild extends Build
         lazy val baseSettings =
             relevantSbtDefaultSettings ++
             configSettings ++
-            inConfig(Compile)(compileSettings)
+            inConfig(Compile)(compileSettings) ++ Seq(
+                watchSources                <++= (ccSourceFilesWithDeps in Compile, cxxSourceFilesWithDeps in Compile) map
+                { (ccsfd, cxxsfd) =>
+                
+                    (ccsfd ++ cxxsfd).flatMap { case (sf, deps) => (sf +: deps.toList) }.toList.distinct
+                },
+                watchSources                <++= (ccSourceFilesWithDeps in Test, cxxSourceFilesWithDeps in Test) map
+                { (ccsfd, cxxsfd) =>
+                
+                    (ccsfd ++ cxxsfd).flatMap { case (sf, deps) => (sf +: deps.toList) }.toList.distinct
+                }
+            )
             
         lazy val staticLibrarySettings = baseSettings ++ Seq(
             exportedLibs <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles in Compile, linkFlags in Compile, streams) map

@@ -13,7 +13,7 @@ std::vector<std::string> catVec( const std::vector<std::string>& bippy )
         res.push_back( stringAdd( *it, *it ) );
     }
     
-    return res; 
+    return res;
 }
 
 int conditionalFlagCheck() { return THING; }
