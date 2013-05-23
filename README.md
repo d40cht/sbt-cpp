@@ -63,10 +63,10 @@ The 'hello world' of sbt-cpp can be found in [samples/helloworld](samples/hellow
      ```
      
  * To build a debug executable for Linux using Gcc, you would complete the following simple steps (from the root directory of the project):
-  1. Execute 'sbt' from the command prompt to enter the build system shell.
-  2. Execute 'native-build-configuration Gcc_LinuxPC_Debug' in the sbt shell to choose the appropriate target.
-  3. Execute 'compile' from the shell to build.
-  4. Execute 'run Bob' from the shell to run the program and see the line:
+  1. Execute `sbt` from the command prompt to enter the build system shell.
+  2. Execute `native-build-configuration Gcc_LinuxPC_Debug` in the sbt shell to choose the appropriate target.
+  3. Execute `compile` from the shell to build.
+  4. Execute `run Bob` from the shell to run the program and see the line:
   
      <pre>Hello world from Bob</pre>
   
@@ -76,9 +76,8 @@ The 'hello world' of sbt-cpp can be found in [samples/helloworld](samples/hellow
 
 An example of a static library and a simple test for that library can be found in [samples/simpletest](samples/simpletest). The main files are shown below
 
-[project/build.scala](samples/simpletest/project/build.scala).
+[project/build.scala](samples/simpletest/project/build.scala). Notice that this is essentially the same as for the helloworld project, with the exception that settings are set to `staticLibrarySettings`.
 
-Notice that this is essentially the same as for the helloworld project, with the exception that settings are set to 'staticLibrarySettings'.
 
     ```
         import sbt._
@@ -91,9 +90,7 @@ Notice that this is essentially the same as for the helloworld project, with the
         }
     ```
 
-[source/library.cpp](samples/simpletest/source/library.cpp)
-
-A simple and pointless implementation of multiplication.
+[source/library.cpp](samples/simpletest/source/library.cpp). A simple and pointless implementation of multiplication.
 
     ```
         #include "library.hpp"
@@ -113,9 +110,7 @@ A simple and pointless implementation of multiplication.
         }
     ```
     
-[test/source/test.cpp](samples/simpletest/test/source/test.cpp)
-
-A test for the above, containing a deliberate mistake.
+[test/source/test.cpp](samples/simpletest/test/source/test.cpp). A test for the above, containing a deliberate mistake.
 
     ```
         #include "library.hpp"
@@ -141,9 +136,9 @@ A test for the above, containing a deliberate mistake.
     ```
     
  * To build a debug executable for Linux using Gcc, you would complete the following simple steps (from the root directory of the project):
-  1. Execute 'sbt' from the command prompt to enter the build system shell.
-  2. Execute 'native-build-configuration Gcc_LinuxPC_Debug' in the sbt shell to choose the appropriate target.
-  3. Execute 'test' from the shell to build the project and run the tests.
+  1. Execute `sbt` from the command prompt to enter the build system shell.
+  2. Execute `native-build-configuration Gcc_LinuxPC_Debug` in the sbt shell to choose the appropriate target.
+  3. Execute `test` from the shell to build the project and run the tests.
   4. Spot the deliberate mistake in the tests. You should see the following:
   
     <pre>
@@ -166,7 +161,7 @@ A test for the above, containing a deliberate mistake.
     
 ## Features
   
- * As well as support for building simple single-project executables (settings=nativeExeSettings), sbt-cpp currently has support for (at varying stages of development):
+ * As well as support for building simple single-project executables (`settings=nativeExeSettings`), sbt-cpp currently has support for (at varying stages of development):
   + Static and shared libraries.
   + C and C++.
   + Explicit dependencies between projects.
@@ -196,7 +191,7 @@ A test for the above, containing a deliberate mistake.
 ## Per user/machine config overrides
 
 * In addition to directives in scala for describing the build, sbt-cpp allows additional per-user overrides of standard configuration using the [Typesafe](http://typesafe.com/) [config](https://github.com/typesafehub/config) library.
-* Per-build overrides can be placed in 'build.conf' and checked in to a particular project repo. Per-user/machine overrides can be placed in 'user.conf', overriding all other config.
+* Per-build overrides can be placed in `build.conf` and checked in to a particular project repo. Per-user/machine overrides can be placed in `user.conf`, overriding all other config.
 * An example config for the simple default build can be found [here](src/main/resources/reference.conf) with an extract for Gcc on Linux below:
 
 ```
