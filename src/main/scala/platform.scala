@@ -110,6 +110,7 @@ object PlatformChecks
         val testProg = headerIncludes + """
             |int main( int argc, char** argv )
             |{
+            |    (void) argc; (void) argv;
             |    void* foo = (void*) &%s;
             |    return foo != 0;
             |}
@@ -131,6 +132,7 @@ object PlatformChecks
         assert( tryCompileAndLink( log, compiler, CCTest, """
             |int main( int argc, char** argv )
             |{
+            |    (void) argc; (void) argv;
             |    return 0;
             |}""".stripMargin ), "Unable to build minimal c program" )
             
@@ -148,6 +150,7 @@ object PlatformChecks
             |};
             |int main( int argc, char** argv )
             |{
+            |    (void) argc; (void) argv;
             |    Bing bing;
             |    return bing.a;
             |}""".stripMargin ), "Unable to build minimal c++ program" )
