@@ -273,8 +273,9 @@ abstract class NativeBuild extends Build
             others.foldLeft(p)
             { case (np, other) =>
                 np.dependsOn( other ).settings(
-                    includeDirectories in Compile  <++= (exportedIncludeDirectories in other),
-                    archiveFiles in Compile        <++= (exportedLibs in other) )
+                    includeDirectories in Compile   <++= (exportedIncludeDirectories in other),
+                    linkDirectories in Compile      <++= (exportedLibDirectories in other),
+                    archiveFiles in Compile         <++= (exportedLibs in other) )
             }
         }
         
@@ -283,8 +284,9 @@ abstract class NativeBuild extends Build
             others.foldLeft(p)
             { case (np, other) =>
                 np.dependsOn( other ).settings(
-                    systemIncludeDirectories in Compile    <++= (exportedIncludeDirectories in other),
-                    archiveFiles in Compile                <++= (exportedLibs in other) )
+                    systemIncludeDirectories in Compile <++= (exportedIncludeDirectories in other),
+                    linkDirectories in Compile          <++= (exportedLibDirectories in other),
+                    archiveFiles in Compile             <++= (exportedLibs in other) )
             }
         }
     }
@@ -421,7 +423,7 @@ abstract class NativeBuild extends Build
                 }
                 
                 (ccTasks ++ cxxTasks).join
-            }                
+            }            
         )
         
         def compileSettings = inConfig(Compile)( buildSettings ++ Seq[Sett](
@@ -434,6 +436,7 @@ abstract class NativeBuild extends Build
             includeDirectories          <<= (projectDirectory) map { pd => Seq(pd / "include") },
             includeDirectories          <++= (includeDirectories in Compile),
             includeDirectories          <++= (exportedIncludeDirectories in Compile),
+            linkDirectories             <++= (linkDirectories in Compile),
             archiveFiles                <++= (archiveFiles in Compile),
             sourceDirectories           <<= (projectDirectory) map { pd => Seq(pd / "source") },
             
