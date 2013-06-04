@@ -5,11 +5,11 @@ before_install:
  - sudo apt-get update -qq
  - sudo apt-get install libboost1.48-all-dev -qq
  - sudo apt-get install python2.7-dev -qq
- - sudo mkdir /opt/seacourt
- - pushd .
- - cd /opt/seacourt
- - sudo wget --no-check-certificate https://releases.linaro.org/latest/components/toolchain/binaries/gcc-linaro-arm-linux-gnueabihf-4.7-2013.04-20130415_linux.tar.bz2
- - sudo tar xf gcc-linaro-arm-linux-gnueabihf-4.7-2013.04-20130415_linux.tar.bz2
- - popd
+# - sudo mkdir /opt/seacourt
+# - pushd .
+# - cd /opt/seacourt
+# - sudo wget --no-check-certificate https://releases.linaro.org/latest/components/toolchain/binaries/gcc-linaro-arm-linux-gnueabihf-4.7-2013.04-20130415_linux.tar.bz2
+# - sudo tar xf gcc-linaro-arm-linux-gnueabihf-4.7-2013.04-20130415_linux.tar.bz2
+# - popd
 
 script: "./test.sh"
