@@ -452,7 +452,7 @@ abstract class NativeBuild extends Build
                 {
                     val blf = c.buildExecutable( s.log, bd, projName + "_test", lfs, lds, nls, ofs ++ pls ++ afs )
                     
-                    Some( blf.runIfNotCached( scd, ofs ++ afs ) )
+                    Some( blf.runIfNotCached( scd, ofs ++ pls ++ afs ) )
                 }                    
             },
             
