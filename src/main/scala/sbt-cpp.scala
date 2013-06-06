@@ -440,7 +440,7 @@ abstract class NativeBuild extends Build
             archiveFiles                <++= (archiveFiles in Compile),
             sourceDirectories           <<= (projectDirectory) map { pd => Seq(pd / "source") },
             
-            testExe                   <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, exportedLibs in Compile, archiveFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
+            testExe                     <<= (compiler, name, projectBuildDirectory, stateCacheDirectory, objectFiles, exportedLibs in Compile, archiveFiles, linkFlags, linkDirectories, nativeLibraries, streams) map
             { case (c, projName, bd, scd, ofs, pls, afs, lfs, lds, nls, s) =>
             
                 if ( ofs.isEmpty )
