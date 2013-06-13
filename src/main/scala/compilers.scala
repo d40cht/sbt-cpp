@@ -7,6 +7,8 @@ import com.typesafe.config.{Config}
 
 import scala.collection.{mutable, immutable}
 
+import ProcessHelper._
+
 /**
   * Gcc and compatible (e.g. Clang) compilers
   */
@@ -97,7 +99,7 @@ case class VSCompiler( override val config : Config, override val buildTypeTrait
 
         // Strip off any trailing backslash characters from the output
         val prefix = "Note: including file:"
-        val depFileLines = depResult.stdout.split("\n").filter( _.startsWith(prefix) ).map( _.drop( prefix.size ).trim )
+        val depFileLines = depResult.stdout.filter( _.startsWith(prefix) ).map( _.drop( prefix.size ).trim )
 
         // Drop the first column and split on spaces to get all the files (potentially several per line )
         val allFiles = depFileLines.map( x => new File(x) )

@@ -36,16 +36,11 @@ trait Compiler
     def buildExecutable( log : Logger, buildDirectory : File, exeName : String, linkFlags : Seq[String], linkPaths : Seq[File], linkLibraries : Seq[String], inputFiles : Seq[File], quiet : Boolean = false ) : FunctionWithResultPath
 }
 
-trait CompilationProcess
+object ProcessHelper
 {
-    protected def reportFileGenerated( log : Logger, genFile : File, quiet : Boolean )
-    {
-        if ( !quiet ) log.info( genFile.toString )
-    }
+    case class ProcessResult( val retCode : Int, val stdout : Seq[String], val stderr : Seq[String] )
     
-    case class ProcessResult( val retCode : Int, val stdout : String, val stderr : String )
-    
-    protected def runProcess( log : Logger, cmd : Seq[String], cwd : File, env : Seq[(String, String)], quiet : Boolean ) =
+    def runProcess( log : Logger, cmd : Seq[String], cwd : File, env : Seq[(String, String)], quiet : Boolean ) =
     {
         val pl = new ProcessOutputToString(true)
         
@@ -71,7 +66,15 @@ trait CompilationProcess
         
         if ( res != 0 ) throw new java.lang.RuntimeException( "Non-zero exit code: " + res )
         
-        new ProcessResult(res, pl.stdout.mkString("\n"), pl.stderr.mkString("\n"))
+        new ProcessResult(res, pl.stdout, pl.stderr)
+    }
+}
+
+trait CompilationProcess
+{
+    protected def reportFileGenerated( log : Logger, genFile : File, quiet : Boolean )
+    {
+        if ( !quiet ) log.info( genFile.toString )
     }
 }
 
@@ -219,7 +222,7 @@ abstract class NativeBuild extends Build
     
     val buildOptsParser = Space ~> configurations.map( x => token(x.conf.name) ).reduce(_ | _)
     
-    
+    val shCommandName = "sh"
     val nativeBuildConfigurationCommandName = "native-build-configuration"
     
     val configKey = AttributeKey[BuildConfiguration]("configKey")
@@ -236,9 +239,19 @@ abstract class NativeBuild extends Build
         state.copy( attributes=updatedAttributes )
     }
     
+    def shCommand( state : State, args : Seq[String]) : State =
+    {
+        Process( args ) !
+        
+        state
+    }
+    
     
     override def settings = super.settings ++ Seq(
-        commands                    ++= (BasicCommands.allBasicCommands :+ setBuildConfigCommand),
+        commands                    ++= BasicCommands.allBasicCommands ++ Seq(
+            setBuildConfigCommand,
+            Command.args("sh", "<args>")(shCommand)
+        ),
         
         buildConfiguration          <<= state map
         { s =>
@@ -471,9 +484,13 @@ abstract class NativeBuild extends Build
                     { _ =>
                         s.log.info( "Running test: " + tExe )
                         
-                        val pb = Process( tExe.toString :: Nil, pd, tenvs : _* )
-                        val po = new ProcessOutputToString( mergeToStdout=true )
-                        res = pb ! po
+                        //case class ProcessResult( val retCode : Int, val stdout : String, val stderr : String )
+                        //runProcess( log : Logger, cmd : Seq[String], cwd : File, env : Seq[(String, String)], quiet : Boolean )
+                        //val pb = Process( tExe.toString :: Nil, pd, tenvs : _* )
+                        //val po = new ProcessOutputToString( mergeToStdout=true )
+                        //res = pb ! po
+                        
+                        val po = ProcessHelper.runProcess( s.log, Seq(tExe.toString), pd, tenvs, quiet=true )
                         
                         IO.writeLines( stdoutFile, po.stdout )
                         IO.writeLines( resFile, Seq( res.toString ) )
