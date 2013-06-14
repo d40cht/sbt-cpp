@@ -8,7 +8,7 @@ import org.seacourt.build.NativeDefaultBuild._
 import scala.collection.{mutable, immutable}
 
 
-object TestBuild extends NativeDefaultBuild
+object TestBuild extends NativeDefaultBuild( "TestBuild" )
 {
     import PlatformChecks._
     import NativeProject._

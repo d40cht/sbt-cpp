@@ -154,7 +154,7 @@ abstract class NativeBuild extends Build
     lazy val ccFilePattern = Seq("*.c")
     lazy val cxxFilePattern = Seq("*.cpp", "*.cxx")
     
-    lazy val buildRootDirectory = file( conf.getString( "build.rootdirectory" ) ).getAbsoluteFile
+    lazy val buildRootDirectory = file( conf.getString( "build.rootdirectory" ) ).getAbsoluteFile / buildName
     
     private lazy val allProjectVals : Seq[Project] = ReflectUtilities.allVals[Project](this).values.toSeq
     
@@ -176,6 +176,8 @@ abstract class NativeBuild extends Build
             NativeProject("all", file("."), NativeProject.baseSettings).aggregate( allProjectRefs : _* ) +: allProjects
         }
     }
+    
+    val buildName : String
 
     type BuildType <: BuildTypeTrait
     
@@ -478,22 +480,14 @@ abstract class NativeBuild extends Build
                     val resFile = file( tExe + ".res" )
                     val stdoutFile = file( tExe + ".stdout" )
                     
-                    // TODO: This mutable var is evil. Return res more sanely from the closure
-                    var res = 0
                     val tcf = FunctionWithResultPath( stdoutFile )
                     { _ =>
                         s.log.info( "Running test: " + tExe )
                         
-                        //case class ProcessResult( val retCode : Int, val stdout : String, val stderr : String )
-                        //runProcess( log : Logger, cmd : Seq[String], cwd : File, env : Seq[(String, String)], quiet : Boolean )
-                        //val pb = Process( tExe.toString :: Nil, pd, tenvs : _* )
-                        //val po = new ProcessOutputToString( mergeToStdout=true )
-                        //res = pb ! po
-                        
                         val po = ProcessHelper.runProcess( s.log, Seq(tExe.toString), pd, tenvs, quiet=true )
                         
                         IO.writeLines( stdoutFile, po.stdout )
-                        IO.writeLines( resFile, Seq( res.toString ) )
+                        IO.writeLines( resFile, Seq( po.retCode.toString ) )
                         
                     }
                     

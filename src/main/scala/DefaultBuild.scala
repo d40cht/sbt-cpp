@@ -37,7 +37,7 @@ object NativeDefaultBuild
     //case object LinuxBeagleBone extends TargetPlatform
 }
 
-class NativeDefaultBuild extends NativeBuild
+class NativeDefaultBuild( override val buildName : String ) extends NativeBuild
 {
     import NativeDefaultBuild._
     import scala.collection.JavaConversions._
