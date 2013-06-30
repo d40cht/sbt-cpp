@@ -15,6 +15,9 @@ import scala.collection.JavaConversions._
   */
 trait Compiler
 {
+  /**
+   * TODO COMMENT: What are "tools"?
+   */
     def toolPaths           : Seq[File]
     def defaultLibraryPaths : Seq[File]
     def defaultIncludePaths : Seq[File]
@@ -49,17 +52,17 @@ object ProcessHelper
         
         if ( quiet )
         {
-            pl.stdout.foreach( ll => log.debug(ll) )
+            pl.stdout.foreach( log.debug(_) )
         }
         else
         {
             if ( res == 0 )
             {
-                pl.stdout.foreach( ll => log.warn(ll) )
+                pl.stdout.foreach( log.warn(_) )
             }
             else
             {
-                pl.stdout.foreach( ll => log.error(ll) )
+                pl.stdout.foreach( log.error(_) )
             }
             
         }
@@ -219,7 +222,7 @@ abstract class NativeBuild extends Build
     val cxxCompileFlags = TaskKey[Seq[String]]("native-cxx-flags", "Native C++ compile flags")
     val linkFlags = TaskKey[Seq[String]]("native-link-flags", "Native link flags")
     
-
+    // TODO: Give more meaningful name. 
     type Sett = Project.Setting[_]
     
     val buildOptsParser = Space ~> configurations.map( x => token(x.conf.name) ).reduce(_ | _)
@@ -281,7 +284,7 @@ abstract class NativeBuild extends Build
         }
     )
     
-    case class RichNativeProject( val p : Project )
+    case class RichNativeProject(p : Project )
     {
         def nativeDependsOn( others : ProjectReference* ) : Project =
         {

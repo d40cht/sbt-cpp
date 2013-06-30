@@ -114,7 +114,7 @@ object PlatformChecks
             |    void* foo = (void*) &%s;
             |    return foo != 0;
             |}
-            """.stripMargin.format( symbolName, symbolName )
+            """.stripMargin.format( symbolName )
 
         tryCompileAndLink( log, compiler, compileType, testProg, includePaths, linkPaths, linkLibraries )
     }
