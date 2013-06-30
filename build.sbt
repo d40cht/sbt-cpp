@@ -6,7 +6,7 @@ organization := "org.seacourt.build"
 
 version := "0.0.34-SNAPSHOT"
 
-scalaVersion := "2.9.3"
+scalaVersion := "2.9.2"
 
 publishMavenStyle := false
 
