@@ -37,30 +37,30 @@ The 'hello world' of sbt-cpp can be found in [samples/helloworld](samples/hellow
 
 [source/main.cpp](samples/helloworld/source/main.cpp), containing the standard C++ hello world example:
  
-     ```
-        #include <iostream>
+```cpp
+#include <iostream>
 
-        int main( int argc, char** argv )
-        {
-            std::cout << "Hello world from: " << argv[1] << std::endl;
-            
-            return 0;
-        }
-     ```
+int main( int argc, char** argv )
+{
+    std::cout << "Hello world from: " << argv[1] << std::endl;
+    
+    return 0;
+}
+```
  
 [project/build.scala](samples/helloworld/project/build.scala), containing the directives for a single executable project (clearly there are currently too many imports required and there should be consolidation):
  
-     ```
-        import sbt._
-        import Keys._
-        import org.seacourt.build._
-        import NativeProject._
+```scala
+import sbt._
+import Keys._
+import org.seacourt.build._
+import NativeProject._
 
-        object TestBuild extends NativeDefaultBuild
-        {
-            lazy val check = NativeProject( "helloworld", file("./"), settings=nativeExeSettings )
-        }
-     ```
+object TestBuild extends NativeDefaultBuild
+{
+    lazy val check = NativeProject( "helloworld", file("./"), settings=nativeExeSettings )
+}
+```
      
  * To build a debug executable for Linux using Gcc, you would complete the following simple steps (from the root directory of the project):
   1. Execute `sbt` from the command prompt to enter the build system shell.
@@ -79,61 +79,61 @@ An example of a static library and a simple test for that library can be found i
 [project/build.scala](samples/simpletest/project/build.scala). Notice that this is essentially the same as for the helloworld project, with the exception that settings are set to `staticLibrarySettings`.
 
 
-    ```
-        import sbt._
-        import Keys._
-        import org.seacourt.build._
+```scala
+import sbt._
+import Keys._
+import org.seacourt.build._
 
-        object TestBuild extends NativeDefaultBuild
-        {
-            lazy val check = NativeProject( "simpletest", file("./"), NativeProject.staticLibrarySettings )
-        }
-    ```
+object TestBuild extends NativeDefaultBuild
+{
+    lazy val check = NativeProject( "simpletest", file("./"), NativeProject.staticLibrarySettings )
+}
+```
 
 [source/library.cpp](samples/simpletest/source/library.cpp). A simple and pointless implementation of multiplication.
 
-    ```
-        #include "library.hpp"
+```cpp
+#include "library.hpp"
 
-        unsigned int multiply( unsigned int a, unsigned int b )
-        {
-            unsigned int acc = 0;
-            unsigned int multiplier = a;
-            for ( int i = 0; i < (sizeof(unsigned int) / sizeof(char))*8; ++i )
-            {
-                if ( (b & 1) ) acc += multiplier;
-                b >>= 1;
-                multiplier <<= 1;
-            }
-            
-            return acc;
-        }
-    ```
+unsigned int multiply( unsigned int a, unsigned int b )
+{
+    unsigned int acc = 0;
+    unsigned int multiplier = a;
+    for ( int i = 0; i < (sizeof(unsigned int) / sizeof(char))*8; ++i )
+    {
+        if ( (b & 1) ) acc += multiplier;
+        b >>= 1;
+        multiplier <<= 1;
+    }
+    
+    return acc;
+}
+```
     
 [test/source/test.cpp](samples/simpletest/test/source/test.cpp). A test for the above, containing a deliberate mistake.
 
-    ```
-        #include "library.hpp"
-        #include "check.hpp"
+```cpp
+#include "library.hpp"
+#include "check.hpp"
 
-        int main( int argc, char** argv )
-        {
-            try
-            {
-                CHECK_EQUAL( multiply( 3, 4 ), 12 );
-                CHECK_EQUAL( multiply( 7, 9 ), 64 );
-                CHECK_EQUAL( multiply( 1024, 1024 ), 1048576 );
-            }
-            catch ( std::exception& e )
-            {
-                std::cerr << "Test failed: " << e.what() << std::endl;
-                return -1;
-            }
-            
-            std::cerr << "All tests passed" << std::endl;
-            return 0;
-        }
-    ```
+int main( int argc, char** argv )
+{
+    try
+    {
+        CHECK_EQUAL( multiply( 3, 4 ), 12 );
+        CHECK_EQUAL( multiply( 7, 9 ), 64 );
+        CHECK_EQUAL( multiply( 1024, 1024 ), 1048576 );
+    }
+    catch ( std::exception& e )
+    {
+        std::cerr << "Test failed: " << e.what() << std::endl;
+        return -1;
+    }
+    
+    std::cerr << "All tests passed" << std::endl;
+    return 0;
+}
+```
     
  * To build a debug executable for Linux using Gcc, you would complete the following simple steps (from the root directory of the project):
   1. Execute `sbt` from the command prompt to enter the build system shell.
@@ -141,18 +141,18 @@ An example of a static library and a simple test for that library can be found i
   3. Execute `test` from the shell to build the project and run the tests.
   4. Spot the deliberate mistake in the tests. You should see the following:
   
-    <pre>
-        [error] Test failed: simpletest
-        [info] Test check failure: (/home/alex.wilson/Devel/AW/sbt-cpp/samples/simpletest/test/source/test.cpp, 9): 63 != 64
-        [info] Test failed: Test check failure: (/home/alex.wilson/Devel/AW/sbt-cpp/samples/simpletest/test/source/test.cpp, 9): 63 != 64
-        [error] (simpletest/test:test) Non-zero exit code: 255
-    </pre>
+     <pre>
+     [error] Test failed: simpletest
+     [info] Test check failure: (/home/alex.wilson/Devel/AW/sbt-cpp/samples/simpletest/test/source/test.cpp, 9): 63 != 64
+     [info] Test failed: Test check failure: (/home/alex.wilson/Devel/AW/sbt-cpp/samples/simpletest/test/source/test.cpp, 9): 63 != 64
+     [error] (simpletest/test:test) Non-zero exit code: 255
+     </pre>
   5. Correct the test (replace '64' with '63' on line 9). Then you should see the following:
   
-    <pre>
-        [info] Running test: /home/alex.wilson/Devel/AW/sbt-cpp/samples/simpletest/target/native/Gcc/LinuxPC/Release/simpletest/simpletest_test
-        [success] Total time: 0 s, completed 20-May-2013 09:57:26
-    </pre>
+     <pre>
+     [info] Running test: /home/alex.wilson/Devel/AW/sbt-cpp/samples/simpletest/target/native/Gcc/LinuxPC/Release/simpletest/simpletest_test
+     [success] Total time: 0 s, completed 20-May-2013 09:57:26
+     </pre>
     
 ### Multi-project builds
 
@@ -234,7 +234,7 @@ Gcc.LinuxPC
 
 A list of the keys specific to sbt-cpp (for sbt aficionados) and their uses (some of which should probably be folded in to their sbt equivalents):
 
-```
+```scala
 val exportedLibs = TaskKey[Seq[File]]("native-exported-libs", "All libraries exported by this project" )
 val exportedLibDirectories = TaskKey[Seq[File]]("native-exported-lib-directories", "All library directories exported by this project" )
 val exportedIncludeDirectories = TaskKey[Seq[File]]("native-exported-include-directories", "All include directories exported by this project" )
