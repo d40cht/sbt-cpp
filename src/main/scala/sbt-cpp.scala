@@ -582,6 +582,15 @@ abstract class NativeBuild extends Build {
     def testSettings = inConfig(Test)(buildSettings ++ Seq[Sett](
       projectDirectory <<=
         (projectDirectory in Compile) map { pd => pd / "test" },
+      projectBuildDirectory <<=
+        (projectBuildDirectory in Compile) map
+        { pbd =>
+        
+          val testBd = pbd / "test"
+          IO.createDirectory(testBd)
+        
+          testBd
+        },
       includeDirectories <<=
         (projectDirectory) map { pd => Seq(pd / "include") },
       includeDirectories <++= (includeDirectories in Compile),
