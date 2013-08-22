@@ -4,7 +4,7 @@ name := "sbt-cpp"
 
 organization := "org.seacourt.build"
 
-version := "0.0.34-SNAPSHOT"
+version := "0.0.34"
 
 scalaVersion := "2.9.2"
 

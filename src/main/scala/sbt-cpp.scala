@@ -489,7 +489,7 @@ abstract class NativeBuild extends Build {
       archiveFiles <<= (projectBuildDirectory) map { _ => Seq() },
 
       linkFlags <<= (compiler) map { _.linkDefaultFlags },
-
+    
       ccSourceFilesWithDeps <<= (
         compiler,
         projectBuildDirectory,
@@ -775,6 +775,7 @@ abstract class NativeBuild extends Build {
 
             blf.runIfNotCached(scd, ofs ++ afs)
         },
+      testExe in Test := None,
       compile in Compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
       run <<= inputTask { (argTask: TaskKey[Seq[String]]) =>
         (argTask,
