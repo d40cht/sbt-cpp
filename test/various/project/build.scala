@@ -73,6 +73,7 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
     lazy val checkLib = ProjectRef( file("../utility"), "check" )
     
     lazy val cproject = NativeProject( "cproject", file( "cproject" ), staticLibrarySettings )
+    lazy val nosourcefile = NativeProject( "nosourcefile", file( "nosourcefile" ), staticLibrarySettings )
     
     lazy val library1 = NativeProject( "library1", file( "library1" ), staticLibrarySettings )
         .nativeDependsOn( checkLib )
@@ -110,7 +111,7 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
                 }
             }
         ) )
-        .nativeDependsOn( checkLib, library1, config )
+        .nativeDependsOn( nosourcefile, checkLib, library1, config )
         
     lazy val boostPython = NativeProject( "boostPython", file("boostpython"),
         sharedLibrarySettings ++ Seq(

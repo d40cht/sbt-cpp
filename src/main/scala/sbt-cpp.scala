@@ -719,9 +719,14 @@ abstract class NativeBuild extends Build {
         linkFlags in Compile,
         streams) map {
           case (c, projName, bd, scd, ofs, lfs, s) =>
-            val blf = c.buildStaticLibrary(s.log, bd, projName, ofs, lfs)
+          
+            if (ofs.isEmpty ) Seq()
+            else
+            {
+              val blf = c.buildStaticLibrary(s.log, bd, projName, ofs, lfs)
 
-            Seq(blf.runIfNotCached(scd, ofs))
+              Seq(blf.runIfNotCached(scd, ofs))
+            }
         },
       exportedIncludeDirectories <<=
         (projectDirectory in Compile) map { pd => Seq(pd / "interface") },
