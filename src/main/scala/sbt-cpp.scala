@@ -333,7 +333,7 @@ abstract class NativeBuild extends Build {
     "Native link flags")
 
   // TODO: Give more meaningful name. 
-  type Sett = Project.Setting[_]
+  type Sett = Def.Setting[_]
 
   val buildOptsParser =
     Space ~> configurations.map(x => token(x.conf.name)).reduce(_ | _)
@@ -431,32 +431,28 @@ abstract class NativeBuild extends Build {
     lazy val configSettings = Seq(
       target := buildRootDirectory,
 
-      historyPath <<= target { t => Some(t / ".history") },
+      historyPath := Some( target.value / ".history" ),
 
-      rootBuildDirectory <<= (target, buildConfiguration) map {
-        case (td, be) => be.conf.targetDirectory(td)
+      rootBuildDirectory := buildConfiguration.value.conf.targetDirectory( target.value ),
+      
+      clean := IO.delete( rootBuildDirectory.value ),
+
+      cleanAll := IO.delete( target.value ),
+
+      compiler := buildConfiguration.value.compiler,
+
+      projectBuildDirectory :=
+      {
+        val dir = rootBuildDirectory.value / name.value
+
+        IO.createDirectory(dir)
+
+        dir
       },
 
-      clean <<= (rootBuildDirectory) map { rbd => IO.delete(rbd) },
+      stateCacheDirectory := projectBuildDirectory.value / "state-cache",
 
-      cleanAll <<= (target) map { td => IO.delete(td) },
-
-      compiler <<= (buildConfiguration) map { _.compiler },
-
-      projectBuildDirectory <<= (rootBuildDirectory, name) map
-        {
-          case (rbd, n) =>
-
-            val dir = rbd / n
-
-            IO.createDirectory(dir)
-
-            dir
-        },
-
-      stateCacheDirectory <<= (projectBuildDirectory) map { _ / "state-cache" },
-
-      systemIncludeDirectories <<= (compiler) map { _.defaultIncludePaths },
+      systemIncludeDirectories := compiler.value.defaultIncludePaths,
 
       nativeTest := None,
 
@@ -466,30 +462,22 @@ abstract class NativeBuild extends Build {
       nativeExe := file(""))
 
     def buildSettings = Seq(
-      ccSourceFiles <<= (sourceDirectories) map {
-        _.flatMap { sd =>
-          ccFilePattern.flatMap(fp => (sd * fp).get)
-        }
-      },
+      ccSourceFiles := sourceDirectories.value.flatMap( sd => ccFilePattern.flatMap(fp => (sd * fp).get) ),
 
-      cxxSourceFiles <<= (sourceDirectories) map {
-        _.flatMap { sd =>
-          cxxFilePattern.flatMap(fp => (sd * fp).get)
-        }
-      },
+      cxxSourceFiles := sourceDirectories.value.flatMap( sd => cxxFilePattern.flatMap(fp => (sd * fp).get) ),
 
-      ccCompileFlags <<= (compiler) map { _.ccDefaultFlags },
+      ccCompileFlags := compiler.value.ccDefaultFlags,
 
-      cxxCompileFlags <<= (compiler) map { _.cxxDefaultFlags },
+      cxxCompileFlags := compiler.value.cxxDefaultFlags,
 
-      linkDirectories <<= (compiler) map { _.defaultLibraryPaths },
+      linkDirectories := compiler.value.defaultLibraryPaths,
 
-      nativeLibraries <<= (projectBuildDirectory) map { _ => Seq() },
+      nativeLibraries := Seq(),
 
-      archiveFiles <<= (projectBuildDirectory) map { _ => Seq() },
+      archiveFiles := Seq(),
 
-      linkFlags <<= (compiler) map { _.linkDefaultFlags },
-    
+      linkFlags := compiler.value.linkDefaultFlags,
+      
       ccSourceFilesWithDeps <<= (
         compiler,
         projectBuildDirectory,
@@ -572,120 +560,97 @@ abstract class NativeBuild extends Build {
         })
 
     def compileSettings = inConfig(Compile)(buildSettings ++ Seq[Sett](
-      includeDirectories <<= (projectDirectory) map {
-        pd => Seq(pd / "interface", pd / "include")
-      },
-      sourceDirectories <<= (projectDirectory) map {
-        pd => Seq(pd / "source")
-      }))
+      includeDirectories := Seq( projectDirectory.value / "interface", projectDirectory.value / "include" )
+    ))
 
     def testSettings = inConfig(Test)(buildSettings ++ Seq[Sett](
-      projectDirectory <<=
-        (projectDirectory in Compile) map { pd => pd / "test" },
-      projectBuildDirectory <<=
-        (projectBuildDirectory in Compile) map
-        { pbd =>
-        
-          val testBd = pbd / "test"
-          IO.createDirectory(testBd)
-        
-          testBd
-        },
-      includeDirectories <<=
-        (projectDirectory) map { pd => Seq(pd / "include") },
-      includeDirectories <++= (includeDirectories in Compile),
-      includeDirectories <++= (exportedIncludeDirectories in Compile),
-      linkDirectories <++= (linkDirectories in Compile),
-      archiveFiles <++= (archiveFiles in Compile),
-      sourceDirectories <<=
-        (projectDirectory) map { pd => Seq(pd / "source") },
+      projectDirectory := (projectDirectory in Compile).value / "test",
+      projectBuildDirectory :=
+      {
+        val testBd = (projectBuildDirectory in Compile).value / "test"
+        IO.createDirectory(testBd)
+        testBd
+      },
+      includeDirectories := Seq( projectDirectory.value / "include" ),
+      includeDirectories ++= (includeDirectories in Compile).value,
+      includeDirectories ++= (exportedIncludeDirectories in Compile).value,
+      linkDirectories ++= (linkDirectories in Compile).value,
+      archiveFiles ++= (archiveFiles in Compile).value,
+      sourceDirectories := Seq( projectDirectory.value / "source" ),
 
-      testExe <<= (
-        compiler,
-        name,
-        projectBuildDirectory,
-        stateCacheDirectory,
-        objectFiles,
-        exportedLibs in Compile,
-        archiveFiles,
-        linkFlags,
-        linkDirectories,
-        nativeLibraries,
-        streams) map {
-          case (c, projName, bd, scd, ofs, pls, afs, lfs, lds, nls, s) =>
-            if (ofs.isEmpty) {
-              s.log.info("No tests defined for: " + projName)
-              None
-            } else {
-              val blf = c.buildExecutable(
-                s.log,
-                bd,
-                projName + "_test",
-                lfs,
-                lds,
-                nls,
-                ofs ++ pls ++ afs)
+      testExe :=
+      {
+        if ( objectFiles.value.isEmpty )
+        {
+          streams.value.log.info( "No tests defined for: " + name.value )
+          None
+        }
+        else
+        {
+          val allInputFiles = objectFiles.value ++ (exportedLibs in Compile).value ++ archiveFiles.value
+          val blf = compiler.value.buildExecutable(
+            streams.value.log,
+            projectBuildDirectory.value,
+            name.value + "_test",
+            linkFlags.value,
+            linkDirectories.value,
+            nativeLibraries.value,
+            allInputFiles )
+          Some( blf.runIfNotCached( stateCacheDirectory.value, allInputFiles ) )
+        }
+      },
 
-              Some(blf.runIfNotCached(scd, ofs ++ pls ++ afs))
-            }
-        },
+      testExtraDependencies := ((projectDirectory.value / "data") ** "*").get,
+      
+      nativeTest :=
+      {
+        if ( !buildConfiguration.value.conf.isCrossCompile && testExe.value.isDefined )
+        {
+          val texe = testExe.value.get
+          
+          val resFile = file(texe + ".res")
+          val stdoutFile = file(texe + ".stdout")
 
-      testExtraDependencies <<=
-        (projectDirectory) map { pd => ((pd / "data") ** "*").get },
+          val tcf = FunctionWithResultPath(stdoutFile) { _ =>
+            streams.value.log.info("Running test: " + texe)
 
-      nativeTest <<= (
-        testExe,
-        testExtraDependencies,
-        environmentVariables in Test,
-        stateCacheDirectory,
-        projectDirectory,
-        buildConfiguration, streams) map {
-          case (
-            Some(tExe),
-            teds,
-            tenvs,
-            scd,
-            pd,
-            bc,
-            s) if !bc.conf.isCrossCompile => {
-            val resFile = file(tExe + ".res")
-            val stdoutFile = file(tExe + ".stdout")
+            val po = ProcessHelper.runProcess(
+              streams.value.log,
+              Seq(texe.toString),
+              projectDirectory.value,
+              (environmentVariables in Test).value,
+              quiet = true)
 
-            val tcf = FunctionWithResultPath(stdoutFile) { _ =>
-              s.log.info("Running test: " + tExe)
+            IO.writeLines(stdoutFile, po.stdout)
+            IO.writeLines(resFile, Seq(po.retCode.toString))
 
-              val po = ProcessHelper.runProcess(
-                s.log,
-                Seq(tExe.toString),
-                pd,
-                tenvs,
-                quiet = true)
-
-              IO.writeLines(stdoutFile, po.stdout)
-              IO.writeLines(resFile, Seq(po.retCode.toString))
-
-            }
-
-            tcf.runIfNotCached(scd, tExe +: teds)
-
-            Some((resFile, stdoutFile))
           }
-          case _ => None
-        },
+
+          tcf.runIfNotCached(stateCacheDirectory.value, texe +: testExtraDependencies.value)
+
+          Some((resFile, stdoutFile))
+        }
+        else
+        {
+          None
+        }
+      },
 
       compile <<= (testExe) map { nc => sbt.inc.Analysis.Empty },
 
-      test <<= (nativeTest, streams, name).map {
-        case (Some((resFile, stdOutFile)), s, n) => {
-          val res = IO.readLines(resFile).head.toInt
-          if (res != 0) {
-            s.log.error("Test failed: " + n)
-            IO.readLines(stdOutFile).foreach(l => s.log.info(l))
-            sys.error("Non-zero exit code: " + res.toString)
+      test :=
+      {
+        nativeTest.value map
+        { case (resFile, stdOutFile) =>
+        
+          val res = IO.readLines( resFile ).head.toInt
+          if ( res != 0 )
+          {
+            streams.value.log.error( "Test failed: " + name.value )
+            IO.readLines( stdOutFile ).foreach { l => streams.value.log.info(l) }
+            sys.error( "Non-zero exit code: " + res.toString )
           }
         }
-        case (None, s, n) =>
-
       }))
 
     lazy val baseSettings =
@@ -710,87 +675,69 @@ abstract class NativeBuild extends Build {
             })
 
     lazy val staticLibrarySettings = baseSettings ++ Seq(
-      exportedLibs <<= (
-        compiler,
-        name,
-        projectBuildDirectory,
-        stateCacheDirectory,
-        objectFiles in Compile,
-        linkFlags in Compile,
-        streams) map {
-          case (c, projName, bd, scd, ofs, lfs, s) =>
-          
-            if (ofs.isEmpty ) Seq()
-            else
-            {
-              val blf = c.buildStaticLibrary(s.log, bd, projName, ofs, lfs)
+      exportedLibs :=
+      {
+        val ofs = (objectFiles in Compile).value
+        
+        if ( ofs.isEmpty ) Seq()
+        else
+        {
+          val blf = compiler.value.buildStaticLibrary(
+            streams.value.log,
+            projectBuildDirectory.value,
+            name.value,
+            ofs,
+            (linkFlags in Compile).value )
+            
+          Seq(blf.runIfNotCached(stateCacheDirectory.value, ofs))
+        }
+      },
+      exportedIncludeDirectories := Seq( (projectDirectory in Compile).value / "interface" ),
+      exportedLibDirectories := exportedLibs.value.map( _.getParentFile ).distinct,
+      compile in Compile := { exportedLibs.value; sbt.inc.Analysis.Empty }
+    ) ++ testSettings
 
-              Seq(blf.runIfNotCached(scd, ofs))
-            }
-        },
-      exportedIncludeDirectories <<=
-        (projectDirectory in Compile) map { pd => Seq(pd / "interface") },
-      exportedLibDirectories <<=
-        exportedLibs map { _.map(_.getParentFile).distinct },
-      compile in Compile <<=
-        exportedLibs map { nc => sbt.inc.Analysis.Empty }) ++ testSettings
 
     lazy val sharedLibrarySettings = baseSettings ++ Seq(
-      exportedLibs <<= (
-        compiler,
-        name,
-        projectBuildDirectory,
-        stateCacheDirectory,
-        objectFiles in Compile,
-        archiveFiles in Compile,
-        linkDirectories in Compile,
-        nativeLibraries in Compile,
-        linkFlags in Compile, streams) map {
-          case (c, projName, bd, scd, ofs, ars, lds, nls, lfs, s) =>
-            val blf = c.buildSharedLibrary(
-              s.log,
-              bd,
-              projName,
-              ofs ++ ars,
-              lds,
-              nls,
-              lfs)
+      exportedLibs :=
+      {
+        val allInputFiles = (objectFiles in Compile).value ++ (archiveFiles in Compile).value
+        
+        val blf = compiler.value.buildSharedLibrary(
+          streams.value.log,
+          projectBuildDirectory.value,
+          name.value,
+          allInputFiles,
+          (linkDirectories in Compile).value,
+          (nativeLibraries in Compile).value,
+          (linkFlags in Compile).value
+        )
+        
+        Seq( blf.runIfNotCached( stateCacheDirectory.value, allInputFiles ) )
+      },
+      exportedIncludeDirectories := Seq( (projectDirectory in Compile).value / "interface" ),
+      exportedLibDirectories := exportedLibs.value.map(_.getParentFile).distinct,
+      compile in Compile := { exportedLibs.value; sbt.inc.Analysis.Empty }
+    ) ++ testSettings
 
-            Seq(blf.runIfNotCached(scd, ofs))
-        },
-      exportedIncludeDirectories <<=
-        (projectDirectory in Compile) map { pd => Seq(pd / "interface") },
-      exportedLibDirectories <<=
-        exportedLibs map { _.map(_.getParentFile).distinct },
-      compile in Compile <<=
-        exportedLibs map { nc => sbt.inc.Analysis.Empty }) ++ testSettings
+    lazy val nativeExeSettings = baseSettings ++ inConfig(Compile)( Seq(
+      nativeExe in Compile :=
+      {
+        val allInputFiles = objectFiles.value ++ archiveFiles.value
+        
+        val blf = compiler.value.buildExecutable(
+          streams.value.log,
+          projectBuildDirectory.value,
+          name.value,
+          linkFlags.value,
+          linkDirectories.value,
+          nativeLibraries.value,
+          allInputFiles )
 
-    lazy val nativeExeSettings = baseSettings ++ inConfig(Compile)(Seq(
-      nativeExe in Compile <<= (
-        compiler,
-        name,
-        projectBuildDirectory,
-        stateCacheDirectory,
-        objectFiles,
-        archiveFiles,
-        linkFlags,
-        linkDirectories,
-        nativeLibraries,
-        streams) map {
-          case (c, projName, bd, scd, ofs, afs, lfs, lds, nls, s) =>
-            val blf = c.buildExecutable(
-              s.log,
-              bd,
-              projName,
-              lfs,
-              lds,
-              nls,
-              ofs ++ afs)
-
-            blf.runIfNotCached(scd, ofs ++ afs)
-        },
+        blf.runIfNotCached(stateCacheDirectory.value, allInputFiles)
+      },
       testExe in Test := None,
-      compile in Compile <<= nativeExe map { nc => sbt.inc.Analysis.Empty },
+      compile in Compile := { nativeExe.value; sbt.inc.Analysis.Empty },
       run <<= inputTask { (argTask: TaskKey[Seq[String]]) =>
         (argTask,
           environmentVariables,
@@ -802,7 +749,7 @@ abstract class NativeBuild extends Build {
 
               if (res != 0) sys.error("Non-zero exit code: " + res.toString)
           }
-      }))
+      } ))
 
     def apply(
       _name: String,
