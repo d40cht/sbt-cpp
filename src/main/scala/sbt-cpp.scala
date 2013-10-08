@@ -229,7 +229,7 @@ abstract class NativeBuild extends Build {
       if (allProjects.map(_.id) contains "all") {
         allProjects
       } else {
-        NativeProject("all", file("."), NativeProject.baseSettings).aggregate(
+        NativeProject("all", file("./all"), NativeProject.baseSettings).aggregate(
           allProjectRefs: _*) +: allProjects
       }
     }
@@ -250,7 +250,7 @@ abstract class NativeBuild extends Build {
   val compiler = TaskKey[Compiler]("native-compiler")
   val buildConfiguration = TaskKey[BuildConfiguration](
     "native-build-configuration-key")
-  val rootBuildDirectory = TaskKey[File](
+  val configRootBuildDirectory = TaskKey[File](
     "native-root-build-dir",
     "Build root directory (for the config, not the project)")
   val projectBuildDirectory = TaskKey[File](
@@ -429,13 +429,13 @@ abstract class NativeBuild extends Build {
       watch <<= Defaults.watchSetting)
 
     lazy val configSettings = Seq(
-      target := buildRootDirectory,
+      target := buildRootDirectory / name.value,
 
       historyPath := Some( target.value / ".history" ),
 
-      rootBuildDirectory := buildConfiguration.value.conf.targetDirectory( target.value ),
+      configRootBuildDirectory := buildConfiguration.value.conf.targetDirectory( target.value ),
       
-      clean := IO.delete( rootBuildDirectory.value ),
+      clean := IO.delete( configRootBuildDirectory.value ),
 
       cleanAll := IO.delete( target.value ),
 
@@ -443,7 +443,7 @@ abstract class NativeBuild extends Build {
 
       projectBuildDirectory :=
       {
-        val dir = rootBuildDirectory.value / name.value
+        val dir = configRootBuildDirectory.value
 
         IO.createDirectory(dir)
 
