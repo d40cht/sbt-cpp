@@ -560,6 +560,7 @@ abstract class NativeBuild extends Build {
         })
 
     def compileSettings = inConfig(Compile)(buildSettings ++ Seq[Sett](
+      sourceDirectories := Seq( projectDirectory.value / "source" ),
       includeDirectories := Seq( projectDirectory.value / "interface", projectDirectory.value / "include" )
     ))
 
@@ -653,9 +654,7 @@ abstract class NativeBuild extends Build {
         }
       }))
 
-    lazy val baseSettings =
-      relevantSbtDefaultSettings ++
-        configSettings ++
+    lazy val baseSettings = relevantSbtDefaultSettings ++ configSettings ++
         inConfig(Compile)(compileSettings) ++ Seq(
           watchSources <++= (
             ccSourceFilesWithDeps in Compile,
