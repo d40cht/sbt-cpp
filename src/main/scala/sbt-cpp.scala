@@ -137,16 +137,11 @@ trait BuildTypeTrait {
  * Keys for a native build that should be visible from all types of SBT
  * project (including Scala).
  */
-object NativeBuild {
-  val exportedLibs = TaskKey[Seq[File]](
-    "native-exported-libs",
-    "All libraries exported by this project")
-  val exportedLibDirectories = TaskKey[Seq[File]](
-    "native-exported-lib-directories",
-    "All library directories exported by this project")
-  val exportedIncludeDirectories = TaskKey[Seq[File]](
-    "native-exported-include-directories",
-    "All include directories exported by this project")
+object NativeBuild
+{
+  val nativeExportedLibs = TaskKey[Seq[File]]("All libraries exported by this project")
+  val nativeExportedLibDirectories = TaskKey[Seq[File]]("All library directories exported by this project")
+  val nativeExportedIncludeDirectories = TaskKey[Seq[File]]("All include directories exported by this project")
 }
 
 /**
@@ -188,37 +183,38 @@ abstract class NativeBuild extends Build
    * build environment.
    */
   def checkConfiguration(log: Logger, env: BuildConfiguration) = {}
-  val compiler = TaskKey[Compiler]("Compiler to use for this build")
-  val buildConfiguration = TaskKey[BuildConfiguration]("Build configuration key")
-  val configRootBuildDirectory = TaskKey[File]("Build root directory (for the config, not the project)")
-  val projectBuildDirectory = TaskKey[File]("Build directory for this config and project")
-  val stateCacheDirectory = TaskKey[File]("Build state cache directory")
-  val projectDirectory = TaskKey[File]("Project directory")
-  val sourceDirectories = TaskKey[Seq[File]]("Source directories")
-  val includeDirectories = TaskKey[Seq[File]]("Include directories")
-  val systemIncludeDirectories = TaskKey[Seq[File]]("System include directories")
-  val linkDirectories = TaskKey[Seq[File]]("Link directories")
-  val nativeLibraries = TaskKey[Seq[String]]("All native library dependencies for this project")
-  val ccSourceFiles = TaskKey[Seq[File]]("All C source files for this project")
-  val cxxSourceFiles = TaskKey[Seq[File]]("All C++ source files for this project")
-  val ccSourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("All C source files with dependencies for this project")
-  val cxxSourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("All C++ source files with dependencies for this project")
-  val objectFiles = TaskKey[Seq[File]]("All object files for this project")
-  val archiveFiles = TaskKey[Seq[File]]("All archive files for this project, specified by full path")
-  val nativeExe = TaskKey[File]("Executable built by this project (if appropriate)")
-  val testExe = TaskKey[Option[File]]("Test executable built by this project (if appropriate)")
-  val nativeRun = TaskKey[Unit]("Perform a native run of this project")
-  val testProject = TaskKey[Project]("The test sub-project for this project")
-  val testExtraDependencies = TaskKey[Seq[File]]("Extra file dependencies of the test (used to calculate when to re-run tests)")
-  val nativeTest = TaskKey[Option[(File, File)]]("Run the native test, returning the files with stdout and stderr respectively")
-  val test = TaskKey[Unit]("Run the test associated with this project")
-  val environmentVariables = TaskKey[Seq[(String, String)]]("Environment variables to be set for running programs and tests")
-  val cleanAll = TaskKey[Unit]("Clean the entire build directory")
-  val ccCompileFlags = TaskKey[Seq[String]]("Native C compile flags")
-  val cxxCompileFlags = TaskKey[Seq[String]]("Native C++ compile flags")
-  val archiveFlags = TaskKey[Seq[String]]("Native archive flags (when creating archives/static libraries)")
-  val dynamicLibraryLinkFlags = TaskKey[Seq[String]]("Native flags for linking dynamic libraries")
-  val executableLinkFlags = TaskKey[Seq[String]]("Native flags for linking executables")
+  
+  val nativeCompiler = TaskKey[Compiler]("nativeCompiler", "Compiler to use for this build")
+  val nativeBuildConfiguration = TaskKey[BuildConfiguration]("nativeBuildConfiguration", "Build configuration key")
+  val nativeConfigRootBuildDirectory = TaskKey[File]("nativeConfigRootBuildDirectory", "Build root directory (for the config, not the project)")
+  val nativeProjectBuildDirectory = TaskKey[File]("nativeProjectBuildDirectory", "Build directory for this config and project")
+  val nativeStateCacheDirectory = TaskKey[File]("nativeStateCacheDirectory", "Build state cache directory")
+  val nativeProjectDirectory = TaskKey[File]("nativeProjectDirectory", "Project directory")
+  val nativeSourceDirectories = TaskKey[Seq[File]]("nativeSourceDirectories", "Source directories")
+  val nativeIncludeDirectories = TaskKey[Seq[File]]("nativeIncludeDirectories", "Include directories")
+  val nativeSystemIncludeDirectories = TaskKey[Seq[File]]("nativeSystemIncludeDirectories", "System include directories")
+  val nativeLinkDirectories = TaskKey[Seq[File]]("nativeLinkDirectories", "Link directories")
+  val nativeLibraries = TaskKey[Seq[String]]("nativeLibraries", "All native library dependencies for this project")
+  val nativeCCSourceFiles = TaskKey[Seq[File]]("nativeCCSourceFiles", "All C source files for this project")
+  val nativeCXXSourceFiles = TaskKey[Seq[File]]("nativeCXXSourceFiles", "All C++ source files for this project")
+  val nativeCCSourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("nativeCCSourceFilesWithDeps", "All C source files with dependencies for this project")
+  val nativeCXXSourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("nativeCXXSourceFilesWithDeps", "All C++ source files with dependencies for this project")
+  val nativeObjectFiles = TaskKey[Seq[File]]("nativeObjectFiles", "All object files for this project")
+  val nativeArchiveFiles = TaskKey[Seq[File]]("nativeArchiveFiles", "All archive files for this project, specified by full path")
+  val nativeExe = TaskKey[File]("nativeExe", "Executable built by this project (if appropriate)")
+  val nativeTestExe = TaskKey[Option[File]]("nativeTestExe", "Test executable built by this project (if appropriate)")
+  val nativeRun = TaskKey[Unit]("nativeRun", "Perform a native run of this project")
+  val nativeTestProject = TaskKey[Project]("nativeTestProject", "The test sub-project for this project")
+  val nativeTestExtraDependencies = TaskKey[Seq[File]]("nativeTestExtraDependencies", "Extra file dependencies of the test (used to calculate when to re-run tests)")
+  val nativeTest = TaskKey[Option[(File, File)]]("nativeTest", "Run the native test, returning the files with stdout and stderr respectively")
+  val test = TaskKey[Unit]("test", "Run the test associated with this project")
+  val nativeEnvironmentVariables = TaskKey[Seq[(String, String)]]("nativeEnvironmentVariables", "Environment variables to be set for running programs and tests")
+  val nativeCleanAll = TaskKey[Unit]("nativeCleanAll", "Clean the entire build directory")
+  val nativeCCCompileFlags = TaskKey[Seq[String]]("nativeCCCompileFlags", "Native C compile flags")
+  val nativeCXXCompileFlags = TaskKey[Seq[String]]("nativeCXXCompileFlags", "Native C++ compile flags")
+  val nativeArchiveFlags = TaskKey[Seq[String]]("nativeArchiveFlags", "Native archive flags (when creating archives/static libraries)")
+  val nativeDynamicLibraryLinkFlags = TaskKey[Seq[String]]("nativeDynamicLibraryLinkFlags", "Native flags for linking dynamic libraries")
+  val nativeExecutableLinkFlags = TaskKey[Seq[String]]("nativeExecutableLinkFlags", "Native flags for linking executables")
 
   // TODO: Give more meaningful name. 
   type Sett = Def.Setting[_]
@@ -252,7 +248,7 @@ abstract class NativeBuild extends Build
       setBuildConfigCommand,
       Command.args("sh", "<args>")(shCommand)),
 
-    buildConfiguration :=
+    nativeBuildConfiguration :=
     {
       val beo = state.value.attributes.get(configKey)
 
@@ -290,9 +286,9 @@ abstract class NativeBuild extends Build
       others.foldLeft(p) {
         case (np, other) =>
           np.dependsOn(other).settings(
-            includeDirectories in Compile ++= (exportedIncludeDirectories in other).value,
-            linkDirectories in Compile ++= (exportedLibDirectories in other).value,
-            archiveFiles in Compile ++= (exportedLibs in other).value)
+            nativeIncludeDirectories in Compile ++= (nativeExportedIncludeDirectories in other).value,
+            nativeLinkDirectories in Compile ++= (nativeExportedLibDirectories in other).value,
+            nativeArchiveFiles in Compile ++= (nativeExportedLibs in other).value)
       }
     }
 
@@ -302,9 +298,9 @@ abstract class NativeBuild extends Build
       {
         case (np, other) =>
           np.dependsOn(other).settings(
-            systemIncludeDirectories in Compile ++= (exportedIncludeDirectories in other).value,
-            linkDirectories in Compile ++= (exportedLibDirectories in other).value,
-            archiveFiles in Compile ++= (exportedLibs in other).value)
+            nativeSystemIncludeDirectories in Compile ++= (nativeExportedIncludeDirectories in other).value,
+            nativeLinkDirectories in Compile ++= (nativeExportedLibDirectories in other).value,
+            nativeArchiveFiles in Compile ++= (nativeExportedLibs in other).value)
       }
     }
   }
@@ -325,167 +321,167 @@ abstract class NativeBuild extends Build
 
       historyPath := Some( target.value / ".history" ),
 
-      configRootBuildDirectory := buildConfiguration.value.conf.targetDirectory( target.value ),
+      nativeConfigRootBuildDirectory := nativeBuildConfiguration.value.conf.targetDirectory( target.value ),
       
-      clean := IO.delete( configRootBuildDirectory.value ),
+      clean := IO.delete( nativeConfigRootBuildDirectory.value ),
 
-      cleanAll := IO.delete( target.value ),
+      nativeCleanAll := IO.delete( target.value ),
 
-      compiler := buildConfiguration.value.compiler,
+      nativeCompiler := nativeBuildConfiguration.value.compiler,
 
-      projectBuildDirectory :=
+      nativeProjectBuildDirectory :=
       {
-        val dir = configRootBuildDirectory.value
+        val dir = nativeConfigRootBuildDirectory.value
 
         IO.createDirectory(dir)
 
         dir
       },
 
-      stateCacheDirectory := projectBuildDirectory.value / "state-cache",
+      nativeStateCacheDirectory := nativeProjectBuildDirectory.value / "state-cache",
 
-      systemIncludeDirectories := compiler.value.defaultIncludePaths,
+      nativeSystemIncludeDirectories := nativeCompiler.value.defaultIncludePaths,
 
       nativeTest := None,
 
-      exportedLibs := Seq(),
-      exportedLibDirectories := Seq(),
-      exportedIncludeDirectories := Seq(),
+      nativeExportedLibs := Seq(),
+      nativeExportedLibDirectories := Seq(),
+      nativeExportedIncludeDirectories := Seq(),
       nativeExe := file(""))
       
     def scheduleTasks[T]( tasks : Seq[sbt.Def.Initialize[sbt.Task[T]]] ) = Def.taskDyn { tasks.joinWith( _.join ) }
       
     def findDependencies(sourceFile: File) = Def.task
     {
-      val depGen = compiler.value.findHeaderDependencies(
+      val depGen = nativeCompiler.value.findHeaderDependencies(
         state.value.log,
-        projectBuildDirectory.value,
-        includeDirectories.value,
-        systemIncludeDirectories.value,
+        nativeProjectBuildDirectory.value,
+        nativeIncludeDirectories.value,
+        nativeSystemIncludeDirectories.value,
         sourceFile,
-        ccCompileFlags.value)
+        nativeCCCompileFlags.value)
 
-      depGen.runIfNotCached(stateCacheDirectory.value, Seq(sourceFile))
+      depGen.runIfNotCached(nativeStateCacheDirectory.value, Seq(sourceFile))
 
       (sourceFile, IO.readLines(depGen.resultPath).map(file))
     }
 
     def buildSettings = Seq(
-      ccSourceFiles := sourceDirectories.value.flatMap( sd => ccFilePattern.flatMap(fp => (sd * fp).get) ),
+      nativeCCSourceFiles := nativeSourceDirectories.value.flatMap( sd => ccFilePattern.flatMap(fp => (sd * fp).get) ),
 
-      cxxSourceFiles := sourceDirectories.value.flatMap( sd => cxxFilePattern.flatMap(fp => (sd * fp).get) ),
+      nativeCXXSourceFiles := nativeSourceDirectories.value.flatMap( sd => cxxFilePattern.flatMap(fp => (sd * fp).get) ),
 
-      ccCompileFlags := compiler.value.ccDefaultFlags,
+      nativeCCCompileFlags := nativeCompiler.value.ccDefaultFlags,
 
-      cxxCompileFlags := compiler.value.cxxDefaultFlags,
+      nativeCXXCompileFlags := nativeCompiler.value.cxxDefaultFlags,
 
-      linkDirectories := compiler.value.defaultLibraryPaths,
+      nativeLinkDirectories := nativeCompiler.value.defaultLibraryPaths,
 
       nativeLibraries := Seq(),
 
-      archiveFiles := Seq(),
+      nativeArchiveFiles := Seq(),
 
-      archiveFlags := compiler.value.archiveDefaultFlags,
+      nativeArchiveFlags := nativeCompiler.value.archiveDefaultFlags,
       
-      dynamicLibraryLinkFlags := compiler.value.dynamicLibraryLinkDefaultFlags,
+      nativeDynamicLibraryLinkFlags := nativeCompiler.value.dynamicLibraryLinkDefaultFlags,
       
-      executableLinkFlags := compiler.value.executableLinkDefaultFlags,
+      nativeExecutableLinkFlags := nativeCompiler.value.executableLinkDefaultFlags,
       
-      ccSourceFilesWithDeps := Def.taskDyn
+      nativeCCSourceFilesWithDeps := Def.taskDyn
       {
-        ccSourceFiles.value.map { findDependencies _ }.joinWith( _.join )
+        nativeCCSourceFiles.value.map { findDependencies _ }.joinWith( _.join )
       }.value,
         
         
-      cxxSourceFilesWithDeps := Def.taskDyn
+      nativeCXXSourceFilesWithDeps := Def.taskDyn
       {
-        cxxSourceFiles.value.map { findDependencies _ }.joinWith( _.join )
+        nativeCXXSourceFiles.value.map { findDependencies _ }.joinWith( _.join )
       }.value,
 
-      environmentVariables := Seq(),
+      nativeEnvironmentVariables := Seq(),
       
-      objectFiles := Def.taskDyn
+      nativeObjectFiles := Def.taskDyn
       {
-        val ccTasks = ccSourceFilesWithDeps.value.map
+        val ccTasks = nativeCCSourceFilesWithDeps.value.map
         { case (sourceFile, dependencies) =>
         
-          val blf = compiler.value.ccCompileToObj(
+          val blf = nativeCompiler.value.ccCompileToObj(
             state.value.log,
-            projectBuildDirectory.value,
-            includeDirectories.value,
-            systemIncludeDirectories.value,
+            nativeProjectBuildDirectory.value,
+            nativeIncludeDirectories.value,
+            nativeSystemIncludeDirectories.value,
             sourceFile,
-            ccCompileFlags.value )
+            nativeCCCompileFlags.value )
 
-          Def.task { blf.runIfNotCached(stateCacheDirectory.value, sourceFile +: dependencies) }
+          Def.task { blf.runIfNotCached(nativeStateCacheDirectory.value, sourceFile +: dependencies) }
         }
         
-        val cxxTasks = cxxSourceFilesWithDeps.value.map
+        val cxxTasks = nativeCXXSourceFilesWithDeps.value.map
         { case (sourceFile, dependencies) =>
         
-          val blf = compiler.value.cxxCompileToObj(
+          val blf = nativeCompiler.value.cxxCompileToObj(
             state.value.log,
-            projectBuildDirectory.value,
-            includeDirectories.value,
-            systemIncludeDirectories.value,
+            nativeProjectBuildDirectory.value,
+            nativeIncludeDirectories.value,
+            nativeSystemIncludeDirectories.value,
             sourceFile,
-            cxxCompileFlags.value )
+            nativeCXXCompileFlags.value )
 
-          Def.task { blf.runIfNotCached(stateCacheDirectory.value, sourceFile +: dependencies) }
+          Def.task { blf.runIfNotCached(nativeStateCacheDirectory.value, sourceFile +: dependencies) }
         }
 
         (ccTasks ++ cxxTasks).joinWith( _.join )
       }.value )
 
     def compileSettings = inConfig(Compile)(buildSettings ++ Seq[Sett](
-      sourceDirectories := Seq( projectDirectory.value / "source" ),
-      includeDirectories := Seq( projectDirectory.value / "interface", projectDirectory.value / "include" )
+      nativeSourceDirectories := Seq( nativeProjectDirectory.value / "source" ),
+      nativeIncludeDirectories := Seq( nativeProjectDirectory.value / "interface", nativeProjectDirectory.value / "include" )
     ))
 
     def testSettings = inConfig(Test)(buildSettings ++ Seq[Sett](
-      projectDirectory := (projectDirectory in Compile).value / "test",
-      projectBuildDirectory :=
+      nativeProjectDirectory := (nativeProjectDirectory in Compile).value / "test",
+      nativeProjectBuildDirectory :=
       {
-        val testBd = (projectBuildDirectory in Compile).value / "test"
+        val testBd = (nativeProjectBuildDirectory in Compile).value / "test"
         IO.createDirectory(testBd)
         testBd
       },
-      includeDirectories := Seq( projectDirectory.value / "include" ),
-      includeDirectories ++= (includeDirectories in Compile).value,
-      includeDirectories ++= (exportedIncludeDirectories in Compile).value,
-      linkDirectories ++= (linkDirectories in Compile).value,
-      archiveFiles ++= (archiveFiles in Compile).value,
-      sourceDirectories := Seq( projectDirectory.value / "source" ),
+      nativeIncludeDirectories := Seq( nativeProjectDirectory.value / "include" ),
+      nativeIncludeDirectories ++= (nativeIncludeDirectories in Compile).value,
+      nativeIncludeDirectories ++= (nativeExportedIncludeDirectories in Compile).value,
+      nativeLinkDirectories ++= (nativeLinkDirectories in Compile).value,
+      nativeArchiveFiles ++= (nativeArchiveFiles in Compile).value,
+      nativeSourceDirectories := Seq( nativeProjectDirectory.value / "source" ),
 
-      testExe :=
+      nativeTestExe :=
       {
-        if ( objectFiles.value.isEmpty )
+        if ( nativeObjectFiles.value.isEmpty )
         {
           streams.value.log.info( "No tests defined for: " + name.value )
           None
         }
         else
         {
-          val allInputFiles = objectFiles.value ++ (exportedLibs in Compile).value ++ archiveFiles.value
-          val blf = compiler.value.buildExecutable(
+          val allInputFiles = nativeObjectFiles.value ++ (nativeExportedLibs in Compile).value ++ nativeArchiveFiles.value
+          val blf = nativeCompiler.value.buildExecutable(
             streams.value.log,
-            projectBuildDirectory.value,
+            nativeProjectBuildDirectory.value,
             name.value + "_test",
-            executableLinkFlags.value,
-            linkDirectories.value,
+            nativeExecutableLinkFlags.value,
+            nativeLinkDirectories.value,
             nativeLibraries.value,
             allInputFiles )
-          Some( blf.runIfNotCached( stateCacheDirectory.value, allInputFiles ) )
+          Some( blf.runIfNotCached( nativeStateCacheDirectory.value, allInputFiles ) )
         }
       },
 
-      testExtraDependencies := ((projectDirectory.value / "data") ** "*").get,
+      nativeTestExtraDependencies := ((nativeProjectDirectory.value / "data") ** "*").get,
       
       nativeTest :=
       {
-        if ( !buildConfiguration.value.conf.isCrossCompile && testExe.value.isDefined )
+        if ( !nativeBuildConfiguration.value.conf.isCrossCompile && nativeTestExe.value.isDefined )
         {
-          val texe = testExe.value.get
+          val texe = nativeTestExe.value.get
           
           val resFile = file(texe + ".res")
           val stdoutFile = file(texe + ".stdout")
@@ -496,8 +492,8 @@ abstract class NativeBuild extends Build
             val po = ProcessHelper.runProcess(
               streams.value.log,
               Seq(texe.toString),
-              projectDirectory.value,
-              (environmentVariables in Test).value,
+              nativeProjectDirectory.value,
+              (nativeEnvironmentVariables in Test).value,
               quiet = true)
 
             IO.writeLines(stdoutFile, po.stdout)
@@ -505,7 +501,7 @@ abstract class NativeBuild extends Build
 
           }
 
-          tcf.runIfNotCached(stateCacheDirectory.value, texe +: testExtraDependencies.value)
+          tcf.runIfNotCached(nativeStateCacheDirectory.value, texe +: nativeTestExtraDependencies.value)
 
           Some((resFile, stdoutFile))
         }
@@ -515,7 +511,7 @@ abstract class NativeBuild extends Build
         }
       },
 
-      compile <<= (testExe) map { nc => sbt.inc.Analysis.Empty },
+      compile <<= (nativeTestExe) map { nc => sbt.inc.Analysis.Empty },
 
       test :=
       {
@@ -536,8 +532,8 @@ abstract class NativeBuild extends Build
         inConfig(Compile)(compileSettings) ++ Seq(
           watchSources ++=
           {
-            val ccsfd = (ccSourceFilesWithDeps in Compile).value
-            val cxxsfd = (cxxSourceFilesWithDeps in Compile).value
+            val ccsfd = (nativeCCSourceFilesWithDeps in Compile).value
+            val cxxsfd = (nativeCXXSourceFilesWithDeps in Compile).value
 
             (ccsfd ++ cxxsfd).flatMap
             {
@@ -546,8 +542,8 @@ abstract class NativeBuild extends Build
           },
           watchSources ++=
           {
-            val ccsfd = (ccSourceFilesWithDeps in Test).value
-            val cxxsfd = (cxxSourceFilesWithDeps in Test).value
+            val ccsfd = (nativeCCSourceFilesWithDeps in Test).value
+            val cxxsfd = (nativeCXXSourceFilesWithDeps in Test).value
 
             (ccsfd ++ cxxsfd).flatMap
             {
@@ -557,74 +553,74 @@ abstract class NativeBuild extends Build
 
 
     lazy val staticLibrarySettings = baseSettings ++ Seq(
-      exportedLibs :=
+      nativeExportedLibs :=
       {
-        val ofs = (objectFiles in Compile).value
+        val ofs = (nativeObjectFiles in Compile).value
         
         if ( ofs.isEmpty ) Seq()
         else
         {
-          val blf = compiler.value.buildStaticLibrary(
+          val blf = nativeCompiler.value.buildStaticLibrary(
             streams.value.log,
-            projectBuildDirectory.value,
+            nativeProjectBuildDirectory.value,
             name.value,
             ofs,
-            (archiveFlags in Compile).value )
+            (nativeArchiveFlags in Compile).value )
             
-          Seq( blf.runIfNotCached(stateCacheDirectory.value, ofs) )
+          Seq( blf.runIfNotCached(nativeStateCacheDirectory.value, ofs) )
         }
       },
-      exportedIncludeDirectories := Seq( (projectDirectory in Compile).value / "interface" ),
-      exportedLibDirectories := exportedLibs.value.map( _.getParentFile ).distinct,
-      compile in Compile := { exportedLibs.value; sbt.inc.Analysis.Empty }
+      nativeExportedIncludeDirectories := Seq( (nativeProjectDirectory in Compile).value / "interface" ),
+      nativeExportedLibDirectories := nativeExportedLibs.value.map( _.getParentFile ).distinct,
+      compile in Compile := { nativeExportedLibs.value; sbt.inc.Analysis.Empty }
     ) ++ testSettings
 
     lazy val sharedLibrarySettings = baseSettings ++ Seq(
-      exportedLibs :=
+      nativeExportedLibs :=
       {
-        val allInputFiles = (objectFiles in Compile).value ++ (archiveFiles in Compile).value
+        val allInputFiles = (nativeObjectFiles in Compile).value ++ (nativeArchiveFiles in Compile).value
         
-        val blf = compiler.value.buildSharedLibrary(
+        val blf = nativeCompiler.value.buildSharedLibrary(
           streams.value.log,
-          projectBuildDirectory.value,
+          nativeProjectBuildDirectory.value,
           name.value,
           allInputFiles,
-          (linkDirectories in Compile).value,
+          (nativeLinkDirectories in Compile).value,
           (nativeLibraries in Compile).value,
-          (dynamicLibraryLinkFlags in Compile).value
+          (nativeDynamicLibraryLinkFlags in Compile).value
         )
         
-        Seq( blf.runIfNotCached( stateCacheDirectory.value, allInputFiles ) )
+        Seq( blf.runIfNotCached( nativeStateCacheDirectory.value, allInputFiles ) )
       },
-      exportedIncludeDirectories := Seq( (projectDirectory in Compile).value / "interface" ),
-      exportedLibDirectories := exportedLibs.value.map(_.getParentFile).distinct,
-      compile in Compile := { exportedLibs.value; sbt.inc.Analysis.Empty }
+      nativeExportedIncludeDirectories := Seq( (nativeProjectDirectory in Compile).value / "interface" ),
+      nativeExportedLibDirectories := nativeExportedLibs.value.map(_.getParentFile).distinct,
+      compile in Compile := { nativeExportedLibs.value; sbt.inc.Analysis.Empty }
     ) ++ testSettings
 
     lazy val nativeExeSettings = baseSettings ++ inConfig(Compile)( Seq(
       nativeExe in Compile :=
       {
-        val allInputFiles = objectFiles.value ++ archiveFiles.value
+        val allInputFiles = nativeObjectFiles.value ++ nativeArchiveFiles.value
         
-        val blf = compiler.value.buildExecutable(
+        val blf = nativeCompiler.value.buildExecutable(
           streams.value.log,
-          projectBuildDirectory.value,
+          nativeProjectBuildDirectory.value,
           name.value,
-          executableLinkFlags.value,
-          linkDirectories.value,
+          nativeExecutableLinkFlags.value,
+          nativeLinkDirectories.value,
           nativeLibraries.value,
           allInputFiles )
 
-        blf.runIfNotCached(stateCacheDirectory.value, allInputFiles)
+        blf.runIfNotCached(nativeStateCacheDirectory.value, allInputFiles)
       },
-      testExe in Test := None,
+      nativeTestExe in Test := None,
       
       compile in Compile := { nativeExe.value; sbt.inc.Analysis.Empty },
       
       run :=
       {
         val args: Seq[String] = spaceDelimited("<arg>").parsed
-        val res = Process( nativeExe.value.toString +: args, projectDirectory.value, environmentVariables.value : _* ) !
+        val res = Process( nativeExe.value.toString +: args, nativeProjectDirectory.value, nativeEnvironmentVariables.value : _* ) !
         
         if (res != 0) sys.error("Non-zero exit code: " + res.toString)
       } ))
@@ -640,7 +636,7 @@ abstract class NativeBuild extends Build
         settings = Seq(
           name := _name,
           baseDirectory := _projectDirectory,
-          projectDirectory in Compile := baseDirectory.value )
+          nativeProjectDirectory in Compile := baseDirectory.value )
           ++ _settings )
     }
   }

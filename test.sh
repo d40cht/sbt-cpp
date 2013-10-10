@@ -11,12 +11,12 @@ popd
 
 pushd .
 cd samples/helloworld
-sbt "native-build-configuration Gcc_LinuxPC_Debug" "run Baz"
+../../sbt "nativeBuildConfiguration Gcc_LinuxPC_Debug" "run Baz"
 popd
 
 pushd .
 cd samples/simpletest
-sbt "native-build-configuration Gcc_LinuxPC_Debug" test
+../../sbt "nativeBuildConfiguration Gcc_LinuxPC_Debug" test
 popd
 
 

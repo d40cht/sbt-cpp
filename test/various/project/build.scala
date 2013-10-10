@@ -41,18 +41,18 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
         requireHeader( log, config.compiler, CXXTest, "boost/python.hpp", includePaths=Seq(file("/usr/include/python2.7")) )
     }
     
-    lazy val config = NativeProject( "config", file("."),
+    lazy val config = NativeProject( "config", file("config"),
         baseSettings ++ Seq(
-        exportedIncludeDirectories :=
+        nativeExportedIncludeDirectories :=
         {   
-            val platformHeaderDir = projectBuildDirectory.value / "interface"
+            val platformHeaderDir = nativeProjectBuildDirectory.value / "interface"
             val platformConfigFile = platformHeaderDir / "platformconfig.hpp"
             
-            HeaderConfigFile( streams.value.log, compiler.value, platformConfigFile )
+            HeaderConfigFile( streams.value.log, nativeCompiler.value, platformConfigFile )
             { hcf =>
             
                 val s = streams.value
-                val c = compiler.value
+                val c = nativeCompiler.value
                 
                 hcf.addDefinition( "HAS_ZLIB_H",        PlatformChecks.testForHeader( s.log, c, CCTest, "zlib.h" ).toString )
                 hcf.addDefinition( "HAS_MALLOC_H",      PlatformChecks.testForHeader( s.log, c, CCTest, "malloc.h" ).toString )
@@ -75,18 +75,18 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
         
     lazy val library2 = NativeProject( "library2", file( "library2" ),
         staticLibrarySettings ++ Seq(
-            cxxCompileFlags in Compile ++=
+            nativeCXXCompileFlags in Compile ++=
             {
-                buildConfiguration.value.conf.debugOptLevel match
+                nativeBuildConfiguration.value.conf.debugOptLevel match
                 {
                     case Debug      => Seq("-DTHING=1")
                     case Release    => Seq("-DTHING=2")
                 }
             },
             
-            cxxCompileFlags in Compile ++=
+            nativeCXXCompileFlags in Compile ++=
             {
-                buildConfiguration.value.conf.compiler match
+                nativeBuildConfiguration.value.conf.compiler match
                 {
                     case Gcc        => Seq("-DCOMPILER=GnueyGoodness")
                     case Clang      => Seq("-DCOMPILER=AppleTart")
@@ -94,9 +94,9 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
                 }
             },
             
-            cxxCompileFlags in Compile ++=
+            nativeCXXCompileFlags in Compile ++=
             {
-                buildConfiguration.value.conf.targetPlatform match
+                nativeBuildConfiguration.value.conf.targetPlatform match
                 {
                     case LinuxPC    => Seq("-DTARGET_PLATFORM=x86LinusLand")
                     case WindowsPC  => Seq("-DTARGET_PLATFORM=x86PointyClicky")
@@ -107,17 +107,17 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
         
     lazy val boostPython = NativeProject( "boostPython", file("boostpython"),
         sharedLibrarySettings ++ Seq(
-            includeDirectories in Compile       += file("/usr/include/python2.7"),
-            nativeLibraries in Compile          ++= Seq( "boost_python" ),
-            dynamicLibraryLinkFlags in Compile  += "-export-dynamic"
+            nativeIncludeDirectories in Compile         += file("/usr/include/python2.7"),
+            nativeLibraries in Compile                  ++= Seq( "boost_python" ),
+            nativeDynamicLibraryLinkFlags in Compile    += "-export-dynamic"
         ) )
         
     lazy val boostPythonTest = NativeProject( "boostPythonTest", file("boostpythontest"),
         baseSettings ++ Seq(
             test :=
             {
-                val eld = (exportedLibDirectories in boostPython).value
-                val pd = (projectDirectory in Compile).value
+                val eld = (nativeExportedLibDirectories in boostPython).value
+                val pd = (nativeProjectDirectory in Compile).value
                 
                 val testEnvs = Seq( "PYTHONPATH" -> eld.mkString(":") )
                 
@@ -127,16 +127,16 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
         
     lazy val sharedLibrary1 = NativeProject( "libsharedlibrary1", file("sharedlibrary1"),
         sharedLibrarySettings ++ Seq(
-            dynamicLibraryLinkFlags in Compile ++=
+            nativeDynamicLibraryLinkFlags in Compile ++=
             {
-                buildConfiguration.value.conf.compiler match
+                nativeBuildConfiguration.value.conf.compiler match
                 {
                     case Gcc | Clang => Seq("-export-dynamic")
                     case VSCl        => Seq()
                 }
             },
-            nativeLibraries in Test     ++= Seq( "boost_unit_test_framework" ),
-            cxxCompileFlags in Test     ++= Seq("-DBOOST_TEST_DYN_LINK", "-DBOOST_TEST_MAIN" )
+            nativeLibraries in Test         ++= Seq( "boost_unit_test_framework" ),
+            nativeCXXCompileFlags in Test   ++= Seq("-DBOOST_TEST_DYN_LINK", "-DBOOST_TEST_MAIN" )
     ) ) 
     
     lazy val nativeexe = NativeProject( "nativeexe", file("nativeexe"),
@@ -157,11 +157,11 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
             // from the jar automatically.
             mappings in (Compile, packageBin) ++=
             {
-                (exportedLibs in sharedLibrary1).value.map { el => el -> "linux-amd64/%s".format( el.getName ) }
+                (nativeExportedLibs in sharedLibrary1).value.map { el => el -> "linux-amd64/%s".format( el.getName ) }
             },
             javaOptions in Test +=
             {
-                "-Djna.library.path=" + (exportedLibDirectories in sharedLibrary1).value.mkString(":")
+                "-Djna.library.path=" + (nativeExportedLibDirectories in sharedLibrary1).value.mkString(":")
             }
         )
     )
