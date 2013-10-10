@@ -6,8 +6,6 @@ organization := "org.seacourt.build"
 
 version := "0.0.38"
 
-scalaVersion := "2.10.2"
-
 publishMavenStyle := false
 
 publishTo := Some(Resolver.file("file", new File("./releases")))
@@ -16,7 +14,7 @@ libraryDependencies += "com.typesafe" % "config" % "1.0.1"
 
 libraryDependencies += "com.sleepycat" % "je" % "4.0.92"
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "1.9.1"
+libraryDependencies += "org.scalatest" %% "scalatest" % "1.9.1" % "test"
 
 scalacOptions ++= Seq( "-deprecation" )
 
