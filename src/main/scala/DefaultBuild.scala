@@ -41,36 +41,23 @@ class NativeDefaultBuild(override val buildName: String) extends NativeBuild {
   case class BuildType(
     compiler: NativeCompiler,
     targetPlatform: TargetPlatform,
-    debugOptLevel: DebugOptLevel) extends BuildTypeTrait {
-    def pathDirs =
-      Seq(compiler.toString, targetPlatform.toString, debugOptLevel.toString)
+    debugOptLevel: DebugOptLevel) extends BuildTypeTrait
+  {
+    def pathDirs = Seq(compiler.toString, targetPlatform.toString, debugOptLevel.toString)
     def name = pathDirs.mkString("_")
   }
 
-  def makeConfig(buildType: BuildType, mc: BuildType => Compiler) =
-    new BuildConfiguration(buildType, mc(buildType))
+  def makeConfig(buildType: BuildType, mc: BuildType => Compiler) = new BuildConfiguration(buildType, mc(buildType))
 
   override lazy val configurations = Set[BuildConfiguration](
-    makeConfig(
-      new BuildType(Gcc, LinuxPC, Release),
-      bt => new GccLikeCompiler(conf, bt)),
-    makeConfig(
-      new BuildType(Gcc, LinuxPC, Debug),
-      bt => new GccLikeCompiler(conf, bt)),
+    makeConfig( new BuildType(Gcc, LinuxPC, Release), bt => new GccLikeCompiler(conf, bt)),
+    makeConfig( new BuildType(Gcc, LinuxPC, Debug), bt => new GccLikeCompiler(conf, bt)),
 
-    makeConfig(
-      new BuildType(Clang, LinuxPC, Release),
-      bt => new GccLikeCompiler(conf, bt)),
-    makeConfig(
-      new BuildType(Clang, LinuxPC, Debug),
-      bt => new GccLikeCompiler(conf, bt)),
+    makeConfig( new BuildType(Clang, LinuxPC, Release), bt => new GccLikeCompiler(conf, bt)),
+    makeConfig( new BuildType(Clang, LinuxPC, Debug), bt => new GccLikeCompiler(conf, bt)),
 
-    makeConfig(
-      new BuildType(VSCl, WindowsPC, Release),
-      bt => new VSCompiler(conf, bt)),
-    makeConfig(
-      new BuildType(VSCl, WindowsPC, Debug),
-      bt => new VSCompiler(conf, bt)))
+    makeConfig( new BuildType(VSCl, WindowsPC, Release), bt => new VSCompiler(conf, bt)),
+    makeConfig( new BuildType(VSCl, WindowsPC, Debug), bt => new VSCompiler(conf, bt)))
 }
 
 

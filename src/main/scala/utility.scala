@@ -67,6 +67,42 @@ class ProcessOutputToLog(val log: Logger) extends ProcessOutputToString {
   override def info(s: => String) = { super.info(s); log.info(s) }
 }
 
+
+object ProcessHelper {
+  case class ProcessResult(
+    retCode: Int,
+    stdout: Seq[String],
+    stderr: Seq[String])
+
+  def runProcess(
+    log: Logger,
+    cmd: Seq[String],
+    cwd: File,
+    env: Seq[(String, String)],
+    quiet: Boolean) = {
+    val pl = new ProcessOutputToString(true)
+
+    log.debug("Executing: " + cmd.mkString(" "))
+    val res = Process(cmd, cwd, env: _*) ! pl
+
+    if (quiet) {
+      pl.stdout.foreach(log.debug(_))
+    } else {
+      if (res == 0) {
+        pl.stdout.foreach(log.warn(_))
+      } else {
+        pl.stdout.foreach(log.error(_))
+      }
+    }
+
+    if (res != 0)
+      throw new java.lang.RuntimeException("Non-zero exit code: " + res)
+
+    new ProcessResult(res, pl.stdout, pl.stderr)
+  }
+}
+
+
 class HeaderConfigFile(private val fileName: File) {
   private val defs = mutable.ArrayBuffer[(String, String)]()
 

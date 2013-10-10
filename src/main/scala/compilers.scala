@@ -7,7 +7,7 @@ import com.typesafe.config.{ Config }
 
 import scala.collection.{ mutable, immutable }
 
-import ProcessHelper._
+import ProcessHelper.{runProcess, ProcessResult}
 
 /**
  * Gcc and compatible (e.g. Clang) compilers
@@ -38,7 +38,7 @@ case class GccLikeCompiler(
       val depResult = runProcess(
         log,
         depCmd,
-        buildDirectory,
+        getCwd,
         Seq("PATH" -> toolPaths.mkString(":")),
         quiet)
 
@@ -78,7 +78,7 @@ case class GccLikeCompiler(
       runProcess(
         log,
         buildCmd,
-        buildDirectory,
+        getCwd,
         Seq("PATH" -> toolPaths.mkString(":")),
         quiet)
 
@@ -108,7 +108,7 @@ case class GccLikeCompiler(
       runProcess(
         log,
         buildCmd,
-        buildDirectory,
+        getCwd,
         Seq("PATH" -> toolPaths.mkString(":")),
         quiet)
 
@@ -132,7 +132,7 @@ case class GccLikeCompiler(
       runProcess(
         log,
         arCmd,
-        buildDirectory,
+        getCwd,
         Seq("PATH" -> toolPaths.mkString(":")),
         quiet)
 
@@ -162,7 +162,7 @@ case class GccLikeCompiler(
       runProcess(
         log,
         cmd,
-        buildDirectory,
+        getCwd,
         Seq("PATH" -> toolPaths.mkString(":")),
         quiet)
 
@@ -190,7 +190,7 @@ case class GccLikeCompiler(
       runProcess(
         log,
         linkCmd,
-        buildDirectory,
+        getCwd,
         Seq("PATH" -> toolPaths.mkString(":")),
         quiet)
 
@@ -225,7 +225,7 @@ case class VSCompiler(
       val depResult = runProcess(
         log,
         depCmd,
-        buildDirectory,
+        getCwd,
         Seq("PATH" -> toolPaths.mkString(";")),
         quiet = true)
 
@@ -266,7 +266,7 @@ case class VSCompiler(
       runProcess(
         log,
         buildCmd,
-        buildDirectory,
+        getCwd,
         Seq("PATH" -> toolPaths.mkString(";")),
         quiet)
 
@@ -296,7 +296,7 @@ case class VSCompiler(
       runProcess(
         log,
         buildCmd,
-        buildDirectory,
+        getCwd,
         Seq("PATH" -> toolPaths.mkString(";")),
         quiet)
 
@@ -321,7 +321,7 @@ case class VSCompiler(
       runProcess(
         log,
         arCmd,
-        buildDirectory,
+        getCwd,
         Seq("PATH" -> toolPaths.mkString(";")),
         quiet)
 
@@ -349,7 +349,7 @@ case class VSCompiler(
       runProcess(
         log,
         cmd,
-        buildDirectory,
+        getCwd,
         Seq("PATH" -> toolPaths.mkString(";")),
         quiet)
 
@@ -377,7 +377,7 @@ case class VSCompiler(
       runProcess(
         log,
         linkCmd,
-        buildDirectory,
+        getCwd,
         Seq("PATH" -> toolPaths.mkString(";")),
         quiet)
 
