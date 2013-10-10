@@ -10,6 +10,11 @@ cd test/various
 popd
 
 pushd .
+cd test/utility
+./build.sh
+popd
+
+pushd .
 cd samples/helloworld
 ../../sbt "nativeBuildConfiguration Gcc_LinuxPC_Debug" "run Baz"
 popd

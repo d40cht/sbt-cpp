@@ -65,7 +65,7 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
         }
     ) )
     
-    lazy val checkLib = ProjectRef( file("../utility"), "check" )
+    lazy val checkLib = ProjectRef( file("../utility").getCanonicalFile, "check" )
     
     lazy val cproject = NativeProject( "cproject", file( "cproject" ), staticLibrarySettings )
     lazy val nosourcefile = NativeProject( "nosourcefile", file( "nosourcefile" ), staticLibrarySettings )

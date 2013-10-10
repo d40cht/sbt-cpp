@@ -4,6 +4,6 @@ import org.seacourt.build._
 
 object TestBuild extends NativeDefaultBuild( "Utility" )
 {
-    lazy val check = NativeProject( "check", file("./check"), NativeProject.staticLibrarySettings )
+    lazy val check = NativeProject( "check", file("."), NativeProject.staticLibrarySettings )
 }
 

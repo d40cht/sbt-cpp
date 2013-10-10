@@ -572,7 +572,11 @@ abstract class NativeBuild extends Build
       },
       nativeExportedIncludeDirectories := Seq( (nativeProjectDirectory in Compile).value / "interface" ),
       nativeExportedLibDirectories := nativeExportedLibs.value.map( _.getParentFile ).distinct,
-      compile in Compile := { nativeExportedLibs.value; sbt.inc.Analysis.Empty }
+      compile in Compile :=
+      {
+        val orderingDependency = nativeExportedLibs.value
+        sbt.inc.Analysis.Empty
+      }
     ) ++ testSettings
 
     lazy val sharedLibrarySettings = baseSettings ++ Seq(
@@ -594,7 +598,11 @@ abstract class NativeBuild extends Build
       },
       nativeExportedIncludeDirectories := Seq( (nativeProjectDirectory in Compile).value / "interface" ),
       nativeExportedLibDirectories := nativeExportedLibs.value.map(_.getParentFile).distinct,
-      compile in Compile := { nativeExportedLibs.value; sbt.inc.Analysis.Empty }
+      compile in Compile :=
+      {
+        val orderingDependency = nativeExportedLibs.value
+        sbt.inc.Analysis.Empty
+      }
     ) ++ testSettings
 
     lazy val nativeExeSettings = baseSettings ++ inConfig(Compile)( Seq(
@@ -615,7 +623,11 @@ abstract class NativeBuild extends Build
       },
       nativeTestExe in Test := None,
       
-      compile in Compile := { nativeExe.value; sbt.inc.Analysis.Empty },
+      compile in Compile :=
+      {
+        val orderingDependency = nativeExe.value
+        sbt.inc.Analysis.Empty
+      },
       
       run :=
       {
@@ -635,8 +647,8 @@ abstract class NativeBuild extends Build
         base = _projectDirectory,
         settings = Seq(
           name := _name,
-          baseDirectory := _projectDirectory,
-          nativeProjectDirectory in Compile := baseDirectory.value )
+          //baseDirectory := _projectDirectory,
+          nativeProjectDirectory in Compile := baseDirectory.value / _projectDirectory.toString )
           ++ _settings )
     }
   }
