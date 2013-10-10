@@ -19,14 +19,6 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
         testCCompiler( log, config.compiler )
         testCXXCompiler( log, config.compiler )
         testHeaderParse( log, config.compiler )
-
-        /*assert( tryCompileAndLink( log, env.compiler, """
-            |#include <zlib.h>
-            |
-            |int main(int argc, char** argv)
-            |{
-            |    void* ptr = (void*) &gzread;
-            |}""".stripMargin, CXXTest, linkLibraries=Seq("z") ) )*/
         
         // Check for a few expected headers and type sizes
         requireHeader( log, config.compiler, CCTest, "stdio.h" )
@@ -51,14 +43,17 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
     
     lazy val config = NativeProject( "config", file("."),
         baseSettings ++ Seq(
-        exportedIncludeDirectories <+= (streams, compiler, projectBuildDirectory) map { (s, c, pbd) =>
-            
-            val platformHeaderDir = pbd / "interface"
+        exportedIncludeDirectories :=
+        {   
+            val platformHeaderDir = projectBuildDirectory.value / "interface"
             val platformConfigFile = platformHeaderDir / "platformconfig.hpp"
             
-            HeaderConfigFile( s.log, c, platformConfigFile )
+            HeaderConfigFile( streams.value.log, compiler.value, platformConfigFile )
             { hcf =>
             
+                val s = streams.value
+                val c = compiler.value
+                
                 hcf.addDefinition( "HAS_ZLIB_H",        PlatformChecks.testForHeader( s.log, c, CCTest, "zlib.h" ).toString )
                 hcf.addDefinition( "HAS_MALLOC_H",      PlatformChecks.testForHeader( s.log, c, CCTest, "malloc.h" ).toString )
                 hcf.addDefinition( "INT_8_BITS",        PlatformChecks.testForTypeSize( s.log, c, CCTest, "int", 1 ).toString )
@@ -66,7 +61,7 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
                 hcf.addDefinition( "LONG_LONG_64_BITS", PlatformChecks.testForTypeSize( s.log, c, CCTest, "long long", 8 ).toString )
             }
         
-            platformHeaderDir
+            Seq(platformHeaderDir)
         }
     ) )
     
@@ -80,20 +75,18 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
         
     lazy val library2 = NativeProject( "library2", file( "library2" ),
         staticLibrarySettings ++ Seq(
-            cxxCompileFlags in Compile <++= (buildConfiguration) map
-            { be =>
-                
-                be.conf.debugOptLevel match
+            cxxCompileFlags in Compile ++=
+            {
+                buildConfiguration.value.conf.debugOptLevel match
                 {
                     case Debug      => Seq("-DTHING=1")
                     case Release    => Seq("-DTHING=2")
                 }
             },
             
-            cxxCompileFlags in Compile <++= (buildConfiguration) map
-            { be =>
-                
-                be.conf.compiler match
+            cxxCompileFlags in Compile ++=
+            {
+                buildConfiguration.value.conf.compiler match
                 {
                     case Gcc        => Seq("-DCOMPILER=GnueyGoodness")
                     case Clang      => Seq("-DCOMPILER=AppleTart")
@@ -101,10 +94,9 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
                 }
             },
             
-            cxxCompileFlags in Compile <++= (buildConfiguration) map
-            { be =>
-                
-                be.conf.targetPlatform match
+            cxxCompileFlags in Compile ++=
+            {
+                buildConfiguration.value.conf.targetPlatform match
                 {
                     case LinuxPC    => Seq("-DTARGET_PLATFORM=x86LinusLand")
                     case WindowsPC  => Seq("-DTARGET_PLATFORM=x86PointyClicky")
@@ -115,15 +107,17 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
         
     lazy val boostPython = NativeProject( "boostPython", file("boostpython"),
         sharedLibrarySettings ++ Seq(
-            includeDirectories in Compile  += file("/usr/include/python2.7"),
-            nativeLibraries in Compile     ++= Seq( "boost_python" ),
-            linkFlags in Compile           += "-export-dynamic"
+            includeDirectories in Compile       += file("/usr/include/python2.7"),
+            nativeLibraries in Compile          ++= Seq( "boost_python" ),
+            dynamicLibraryLinkFlags in Compile  += "-export-dynamic"
         ) )
         
     lazy val boostPythonTest = NativeProject( "boostPythonTest", file("boostpythontest"),
         baseSettings ++ Seq(
-            test <<= (exportedLibDirectories in boostPython, projectDirectory in Compile) map
-            { (eld, pd) =>
+            test :=
+            {
+                val eld = (exportedLibDirectories in boostPython).value
+                val pd = (projectDirectory in Compile).value
                 
                 val testEnvs = Seq( "PYTHONPATH" -> eld.mkString(":") )
                 
@@ -133,8 +127,9 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
         
     lazy val sharedLibrary1 = NativeProject( "libsharedlibrary1", file("sharedlibrary1"),
         sharedLibrarySettings ++ Seq(
-            linkFlags in Compile        <++= buildConfiguration map
-            { _.conf.compiler match
+            dynamicLibraryLinkFlags in Compile ++=
+            {
+                buildConfiguration.value.conf.compiler match
                 {
                     case Gcc | Clang => Seq("-export-dynamic")
                     case VSCl        => Seq()
@@ -160,12 +155,14 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
             exportJars          := true,
             // When the next version of JNA is released (>3.5.2) it should pick this .so up
             // from the jar automatically.
-            mappings in (Compile, packageBin) <++= (exportedLibs in sharedLibrary1) map
-            { exportedLibs =>
-            
-                exportedLibs.map { el => el -> "linux-amd64/%s".format( el.getName ) }
+            mappings in (Compile, packageBin) ++=
+            {
+                (exportedLibs in sharedLibrary1).value.map { el => el -> "linux-amd64/%s".format( el.getName ) }
             },
-            javaOptions in Test <+= (exportedLibDirectories in sharedLibrary1) map { elds => "-Djna.library.path=" + elds.mkString(":") }
+            javaOptions in Test +=
+            {
+                "-Djna.library.path=" + (exportedLibDirectories in sharedLibrary1).value.mkString(":")
+            }
         )
     )
     .dependsOn( TestBuild.sharedLibrary1 )

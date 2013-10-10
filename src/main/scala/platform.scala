@@ -95,7 +95,7 @@ object PlatformChecks {
             log,
             td,
             outputName,
-            linkFlags = compiler.linkDefaultFlags,
+            executableLinkFlags = compiler.executableLinkDefaultFlags,
             linkPaths = compiler.defaultLibraryPaths ++ linkPaths,
             linkLibraries = linkLibraries,
             inputFiles = Seq(objFile),

@@ -10,34 +10,35 @@ import scala.collection.{ mutable, immutable }
  * than the file it will create
  */
 
-class FunctionWithResultPath(val resultPath: File, val fn: () => File) {
+class FunctionWithResultPath(val resultPath: File, val fn: () => Unit)
+{
   import java.security.MessageDigest
 
-  private def md5(s: String) =
-    MessageDigest.getInstance("MD5").digest(s.getBytes).map(
-      "%02X" format _).mkString
+  private def md5(s: String) = MessageDigest.getInstance("MD5").digest(s.getBytes).map("%02X" format _).mkString
 
-  def apply() = fn()
+  def apply() = { fn(); resultPath }
   def runIfNotCached(stateCacheDir: File, inputDeps: Seq[File]) =
-    {
-      val resultPathHash = md5(resultPath.toString)
-      val lazyBuild = FileFunction.cached(
-        stateCacheDir / resultPathHash,
-        FilesInfo.lastModified,
-        FilesInfo.exists) { _ =>
-          Set(fn())
-        }
-      lazyBuild(inputDeps.toSet)
-
-      resultPath
+  {
+    val resultPathHash = md5(resultPath.toString)
+    val lazyBuild = FileFunction.cached( stateCacheDir / resultPathHash, FilesInfo.lastModified, FilesInfo.exists)
+    { _ =>
+    
+      IO.delete( resultPath )
+      fn()
+      Set(resultPath)
     }
+      
+    lazyBuild(inputDeps.toSet)
+
+    resultPath
+  }
 }
 
-object FunctionWithResultPath {
-  def apply(resultPath: File)(fn: File => Unit): FunctionWithResultPath = {
-    new FunctionWithResultPath(
-      resultPath,
-      () => { fn(resultPath); resultPath })
+object FunctionWithResultPath
+{
+  def apply(resultPath: File)(fn: File => Unit): FunctionWithResultPath =
+  {
+    new FunctionWithResultPath( resultPath, () => { fn(resultPath) })
   }
 }
 
@@ -80,16 +81,15 @@ class HeaderConfigFile(private val fileName: File) {
 }
 
 object HeaderConfigFile {
-  def apply(log: Logger, compiler: Compiler, fileName: File)(
-      fn: HeaderConfigFile => Unit): File = {
-      FunctionWithResultPath(fileName) { _ =>
+  def apply(log: Logger, compiler: Compiler, fileName: File)( fn: HeaderConfigFile => Unit): File =
+  {
+      FunctionWithResultPath(fileName)
+      { _ =>
         val hcf = new HeaderConfigFile(fileName)
 
         fn(hcf)
 
         hcf.write()
-
-        fileName
       }()
     }
 }

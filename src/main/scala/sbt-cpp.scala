@@ -26,7 +26,9 @@ trait Compiler {
   def linkerExe: File
   def ccDefaultFlags: Seq[String]
   def cxxDefaultFlags: Seq[String]
-  def linkDefaultFlags: Seq[String]
+  def archiveDefaultFlags: Seq[String]
+  def dynamicLibraryLinkDefaultFlags: Seq[String]
+  def executableLinkDefaultFlags: Seq[String]
 
   def findHeaderDependencies(
     log: Logger,
@@ -53,13 +55,13 @@ trait Compiler {
     sourceFile: File,
     compilerFlags: Seq[String],
     quiet: Boolean = false): FunctionWithResultPath
-
+    
   def buildStaticLibrary(
     log: Logger,
     buildDirectory: File,
     libName: String,
     objectFiles: Seq[File],
-    linkFlags: Seq[String],
+    archiveFlags: Seq[String],
     quiet: Boolean = false): FunctionWithResultPath
   def buildSharedLibrary(
     log: Logger,
@@ -68,13 +70,13 @@ trait Compiler {
     objectFiles: Seq[File],
     linkPaths: Seq[File],
     linkLibraries: Seq[String],
-    linkFlags: Seq[String],
+    dynamicLibraryLinkFlags: Seq[String],
     quiet: Boolean = false): FunctionWithResultPath
   def buildExecutable(
     log: Logger,
     buildDirectory: File,
     exeName: String,
-    linkFlags: Seq[String],
+    executableLinkFlags: Seq[String],
     linkPaths: Seq[File],
     linkLibraries: Seq[String],
     inputFiles: Seq[File],
@@ -129,24 +131,18 @@ trait CompilerWithConfig extends Compiler {
   private val configPrefix = buildTypeTrait.pathDirs
   private def ton(d: Seq[String]) = d.mkString(".")
 
-  override def toolPaths =
-    config.getStringList(ton(configPrefix :+ "toolPaths")).map(file)
-  override def defaultIncludePaths =
-    config.getStringList(ton(configPrefix :+ "includePaths")).map(file)
-  override def defaultLibraryPaths =
-    config.getStringList(ton(configPrefix :+ "libraryPaths")).map(file)
+  override def toolPaths = config.getStringList(ton(configPrefix :+ "toolPaths")).map(file)
+  override def defaultIncludePaths = config.getStringList(ton(configPrefix :+ "includePaths")).map(file)
+  override def defaultLibraryPaths = config.getStringList(ton(configPrefix :+ "libraryPaths")).map(file)
   override def ccExe = file(config.getString(ton(configPrefix :+ "ccExe")))
   override def cxxExe = file(config.getString(ton(configPrefix :+ "cxxExe")))
-  override def archiverExe =
-    file(config.getString(ton(configPrefix :+ "archiver")))
-  override def linkerExe =
-    file(config.getString(ton(configPrefix :+ "linker")))
-  override def ccDefaultFlags =
-    config.getStringList(ton(configPrefix :+ "ccFlags"))
-  override def cxxDefaultFlags =
-    config.getStringList(ton(configPrefix :+ "cxxFlags"))
-  override def linkDefaultFlags =
-    config.getStringList(ton(configPrefix :+ "linkFlags"))
+  override def archiverExe = file(config.getString(ton(configPrefix :+ "archiver")))
+  override def linkerExe = file(config.getString(ton(configPrefix :+ "linker")))
+  override def ccDefaultFlags = config.getStringList(ton(configPrefix :+ "ccFlags"))
+  override def cxxDefaultFlags = config.getStringList(ton(configPrefix :+ "cxxFlags"))
+  override def archiveDefaultFlags = config.getStringList(ton(configPrefix :+ "archiveFlags"))
+  override def dynamicLibraryLinkDefaultFlags = config.getStringList(ton(configPrefix :+ "dynamicLibraryLinkFlags"))
+  override def executableLinkDefaultFlags = config.getStringList(ton(configPrefix :+ "executableLinkFlags"))
 }
 
 /*case class NativeAnalysis[T]( val data : T, val warningLines : Seq[String] = Seq() )
@@ -251,7 +247,9 @@ abstract class NativeBuild extends Build
   val cleanAll = TaskKey[Unit]("Clean the entire build directory")
   val ccCompileFlags = TaskKey[Seq[String]]("Native C compile flags")
   val cxxCompileFlags = TaskKey[Seq[String]]("Native C++ compile flags")
-  val linkFlags = TaskKey[Seq[String]]("Native link flags")
+  val archiveFlags = TaskKey[Seq[String]]("Native archive flags (when creating archives/static libraries)")
+  val dynamicLibraryLinkFlags = TaskKey[Seq[String]]("Native flags for linking dynamic libraries")
+  val executableLinkFlags = TaskKey[Seq[String]]("Native flags for linking executables")
 
   // TODO: Give more meaningful name. 
   type Sett = Def.Setting[_]
@@ -323,10 +321,9 @@ abstract class NativeBuild extends Build
       others.foldLeft(p) {
         case (np, other) =>
           np.dependsOn(other).settings(
-            includeDirectories in Compile <++=
-              (exportedIncludeDirectories in other),
-            linkDirectories in Compile <++= (exportedLibDirectories in other),
-            archiveFiles in Compile <++= (exportedLibs in other))
+            includeDirectories in Compile ++= (exportedIncludeDirectories in other).value,
+            linkDirectories in Compile ++= (exportedLibDirectories in other).value,
+            archiveFiles in Compile ++= (exportedLibs in other).value)
       }
     }
 
@@ -336,10 +333,9 @@ abstract class NativeBuild extends Build
       {
         case (np, other) =>
           np.dependsOn(other).settings(
-            systemIncludeDirectories in Compile <++=
-              (exportedIncludeDirectories in other),
-            linkDirectories in Compile <++= (exportedLibDirectories in other),
-            archiveFiles in Compile <++= (exportedLibs in other))
+            systemIncludeDirectories in Compile ++= (exportedIncludeDirectories in other).value,
+            linkDirectories in Compile ++= (exportedLibDirectories in other).value,
+            archiveFiles in Compile ++= (exportedLibs in other).value)
       }
     }
   }
@@ -420,7 +416,11 @@ abstract class NativeBuild extends Build
 
       archiveFiles := Seq(),
 
-      linkFlags := compiler.value.linkDefaultFlags,
+      archiveFlags := compiler.value.archiveDefaultFlags,
+      
+      dynamicLibraryLinkFlags := compiler.value.dynamicLibraryLinkDefaultFlags,
+      
+      executableLinkFlags := compiler.value.executableLinkDefaultFlags,
       
       ccSourceFilesWithDeps := Def.taskDyn
       {
@@ -502,7 +502,7 @@ abstract class NativeBuild extends Build
             streams.value.log,
             projectBuildDirectory.value,
             name.value + "_test",
-            linkFlags.value,
+            executableLinkFlags.value,
             linkDirectories.value,
             nativeLibraries.value,
             allInputFiles )
@@ -586,6 +586,7 @@ abstract class NativeBuild extends Build
             }.toList.distinct
           })
 
+
     lazy val staticLibrarySettings = baseSettings ++ Seq(
       exportedLibs :=
       {
@@ -599,16 +600,15 @@ abstract class NativeBuild extends Build
             projectBuildDirectory.value,
             name.value,
             ofs,
-            (linkFlags in Compile).value )
+            (archiveFlags in Compile).value )
             
-          Seq(blf.runIfNotCached(stateCacheDirectory.value, ofs))
+          Seq( blf.runIfNotCached(stateCacheDirectory.value, ofs) )
         }
       },
       exportedIncludeDirectories := Seq( (projectDirectory in Compile).value / "interface" ),
       exportedLibDirectories := exportedLibs.value.map( _.getParentFile ).distinct,
       compile in Compile := { exportedLibs.value; sbt.inc.Analysis.Empty }
     ) ++ testSettings
-
 
     lazy val sharedLibrarySettings = baseSettings ++ Seq(
       exportedLibs :=
@@ -622,7 +622,7 @@ abstract class NativeBuild extends Build
           allInputFiles,
           (linkDirectories in Compile).value,
           (nativeLibraries in Compile).value,
-          (linkFlags in Compile).value
+          (dynamicLibraryLinkFlags in Compile).value
         )
         
         Seq( blf.runIfNotCached( stateCacheDirectory.value, allInputFiles ) )
@@ -641,7 +641,7 @@ abstract class NativeBuild extends Build
           streams.value.log,
           projectBuildDirectory.value,
           name.value,
-          linkFlags.value,
+          executableLinkFlags.value,
           linkDirectories.value,
           nativeLibraries.value,
           allInputFiles )
@@ -663,12 +663,16 @@ abstract class NativeBuild extends Build
     def apply(
       _name: String,
       _projectDirectory: File,
-      _settings: => Seq[Project.Setting[_]]): Project = {
-      Project(id = _name, base = _projectDirectory, settings = Seq(
-        name := _name,
-        baseDirectory := _projectDirectory,
-        projectDirectory in Compile := baseDirectory.value
-        ) ++ _settings)
+      _settings: => Seq[Def.Setting[_]]): Project =
+    {
+      Project(
+        id = _name,
+        base = _projectDirectory,
+        settings = Seq(
+          name := _name,
+          baseDirectory := _projectDirectory,
+          projectDirectory in Compile := baseDirectory.value )
+          ++ _settings )
     }
   }
 }
