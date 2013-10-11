@@ -24,15 +24,15 @@ trait AbstractRunner
     def run( sp : Seq[AbstractProcess], joinStdOutStdErr : Boolean ) : Seq[ProcessExecutionResult]
 }
 
-class LocalRunner extends AbstractRunner
+class LocalRunner( val tmpDir : File ) extends AbstractRunner
 {
     import scala.sys.process._
     
     def run( p : AbstractProcess, joinStdOutStdErr : Boolean ) : ProcessExecutionResult =
     {
         val outputId = java.util.UUID.randomUUID().toString()
-        val stdoutFile = p.wd / ( outputId + ".stdout" )
-        val stderrFile = p.wd / ( outputId + ".stderr" )
+        val stdoutFile = tmpDir / ( outputId + ".stdout" )
+        val stderrFile = tmpDir / ( outputId + ".stderr" )
         
         val stdoutPW = new PrintWriter( stdoutFile )
         val stderrPW = new PrintWriter( stderrFile )
@@ -67,9 +67,9 @@ class LocalRunner extends AbstractRunner
 
 object ProcessHelper
 {
-    def runProcess( log : Logger, process : AbstractProcess, mergeToStdout : Boolean, quiet : Boolean ) : ProcessExecutionResult =
+    def runProcess( tmpDir : File, log : Logger, process : AbstractProcess, mergeToStdout : Boolean, quiet : Boolean ) : ProcessExecutionResult =
     {
-        val lr = new LocalRunner()
+        val lr = new LocalRunner( tmpDir )
         log.debug("Executing: " + process.cmdString)
         val res = lr.run( process, true )
         
@@ -92,58 +92,3 @@ object ProcessHelper
     }
 }
 
-/*
-class ProcessOutputToString(
-  val mergeToStdout: Boolean = false) extends ProcessLogger {
-  val stderr = mutable.ArrayBuffer[String]()
-  val stdout = mutable.ArrayBuffer[String]()
-
-  def stderrAppend(s: String) = this.synchronized {
-    stderr.append(s)
-  }
-
-  def stdoutAppend(s: String) = this.synchronized {
-    stdout.append(s)
-  }
-
-  override def buffer[T](f: => T) = f
-  override def error(s: => String) = if (mergeToStdout) stdoutAppend(s) else stderrAppend(s)
-  override def info(s: => String) = stdoutAppend(s)
-}
-
-
-object ProcessHelper {
-  case class ProcessResult(
-    retCode: Int,
-    stdout: Seq[String],
-    stderr: Seq[String])
-
-  def runProcess(
-    log: Logger,
-    cmd: Seq[String],
-    cwd: File,
-    env: Seq[(String, String)],
-    quiet: Boolean) = {
-    val pl = new ProcessOutputToString(true)
-
-    log.debug("Executing: " + cmd.mkString(" "))
-    val res = Process(cmd, cwd, env: _*) ! pl
-
-    if (quiet) {
-      pl.stdout.foreach(log.debug(_))
-    } else {
-      if (res == 0) {
-        pl.stdout.foreach(log.warn(_))
-      } else {
-        pl.stdout.foreach(log.error(_))
-      }
-    }
-
-    if (res != 0)
-      throw new java.lang.RuntimeException("Non-zero exit code: " + res)
-
-    new ProcessResult(res, pl.stdout, pl.stderr)
-  }
-}
-
-*/

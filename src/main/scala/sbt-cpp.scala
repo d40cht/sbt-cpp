@@ -129,8 +129,7 @@ trait BuildTypeTrait {
 
   def isCrossCompile = false
 
-  def targetDirectory(rootDirectory: File) =
-    pathDirs.foldLeft(rootDirectory)(_ / _)
+  def targetDirectory(rootDirectory: File) = pathDirs.foldLeft(rootDirectory)(_ / _)
 }
 
 /**
@@ -161,6 +160,7 @@ abstract class NativeBuild extends Build
 
   lazy val conf = userConf.withFallback(localConf).withFallback(defaultConf).resolve()
 
+  lazy val headerFilePattern = Seq("*.h", "*.hpp", "*.hxx")
   lazy val ccFilePattern = Seq("*.c")
   lazy val cxxFilePattern = Seq("*.cpp", "*.cxx")
 
@@ -191,10 +191,12 @@ abstract class NativeBuild extends Build
   val nativeStateCacheDirectory = TaskKey[File]("nativeStateCacheDirectory", "Build state cache directory")
   val nativeProjectDirectory = TaskKey[File]("nativeProjectDirectory", "Project directory")
   val nativeSourceDirectories = TaskKey[Seq[File]]("nativeSourceDirectories", "Source directories")
+  val nativeProjectIncludeDirectories = TaskKey[Seq[File]]("nativeProjectIncludeDirectories", "Include directories local to this project only")
   val nativeIncludeDirectories = TaskKey[Seq[File]]("nativeIncludeDirectories", "Include directories")
   val nativeSystemIncludeDirectories = TaskKey[Seq[File]]("nativeSystemIncludeDirectories", "System include directories")
   val nativeLinkDirectories = TaskKey[Seq[File]]("nativeLinkDirectories", "Link directories")
   val nativeLibraries = TaskKey[Seq[String]]("nativeLibraries", "All native library dependencies for this project")
+  val nativeHeaderSourceFiles = TaskKey[Seq[File]]("nativeHeaderSourceFiles", "All C source files for this project")
   val nativeCCSourceFiles = TaskKey[Seq[File]]("nativeCCSourceFiles", "All C source files for this project")
   val nativeCXXSourceFiles = TaskKey[Seq[File]]("nativeCXXSourceFiles", "All C++ source files for this project")
   val nativeCCSourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("nativeCCSourceFilesWithDeps", "All C source files with dependencies for this project")
@@ -319,7 +321,11 @@ abstract class NativeBuild extends Build
     lazy val configSettings = Seq(
       target := buildRootDirectory / name.value,
 
-      historyPath := Some( target.value / ".history" ),
+      historyPath :=
+      {
+          if ( !target.value.exists ) IO.createDirectory(target.value)
+          Some( target.value / ".history" )
+      },
 
       nativeConfigRootBuildDirectory := nativeBuildConfiguration.value.conf.targetDirectory( target.value ),
       
@@ -367,15 +373,18 @@ abstract class NativeBuild extends Build
     }
 
     def buildSettings = Seq(
-      nativeCCSourceFiles := nativeSourceDirectories.value.flatMap( sd => ccFilePattern.flatMap(fp => (sd * fp).get) ),
+      // Headers are collected for the purposes of IDE output generation, not explicitly used by SBT builds
+      nativeHeaderSourceFiles   := nativeProjectIncludeDirectories.value.flatMap( sd => headerFilePattern.flatMap(fp => (sd * fp).get) ),
+      
+      nativeCCSourceFiles       := nativeSourceDirectories.value.flatMap( sd => ccFilePattern.flatMap(fp => (sd * fp).get) ),
 
-      nativeCXXSourceFiles := nativeSourceDirectories.value.flatMap( sd => cxxFilePattern.flatMap(fp => (sd * fp).get) ),
+      nativeCXXSourceFiles      := nativeSourceDirectories.value.flatMap( sd => cxxFilePattern.flatMap(fp => (sd * fp).get) ),
 
-      nativeCCCompileFlags := nativeCompiler.value.ccDefaultFlags,
+      nativeCCCompileFlags      := nativeCompiler.value.ccDefaultFlags,
 
-      nativeCXXCompileFlags := nativeCompiler.value.cxxDefaultFlags,
+      nativeCXXCompileFlags     := nativeCompiler.value.cxxDefaultFlags,
 
-      nativeLinkDirectories := nativeCompiler.value.defaultLibraryPaths,
+      nativeLinkDirectories     := nativeCompiler.value.defaultLibraryPaths,
 
       nativeLibraries := Seq(),
 
@@ -435,7 +444,8 @@ abstract class NativeBuild extends Build
 
     def compileSettings = inConfig(Compile)(buildSettings ++ Seq[Sett](
       nativeSourceDirectories := Seq( nativeProjectDirectory.value / "source" ),
-      nativeIncludeDirectories := Seq( nativeProjectDirectory.value / "interface", nativeProjectDirectory.value / "include" )
+      nativeProjectIncludeDirectories := Seq( nativeProjectDirectory.value / "interface", nativeProjectDirectory.value / "include" ),
+      nativeIncludeDirectories := nativeProjectIncludeDirectories.value
     ))
 
     def testSettings = inConfig(Test)(buildSettings ++ Seq[Sett](
@@ -446,8 +456,8 @@ abstract class NativeBuild extends Build
         IO.createDirectory(testBd)
         testBd
       },
-      nativeIncludeDirectories := Seq( nativeProjectDirectory.value / "include" ),
-      nativeIncludeDirectories ++= (nativeIncludeDirectories in Compile).value,
+      nativeProjectIncludeDirectories := Seq( nativeProjectDirectory.value / "include" ),
+      nativeIncludeDirectories ++= nativeProjectIncludeDirectories.value ++ (nativeIncludeDirectories in Compile).value,
       nativeIncludeDirectories ++= (nativeExportedIncludeDirectories in Compile).value,
       nativeLinkDirectories ++= (nativeLinkDirectories in Compile).value,
       nativeArchiveFiles ++= (nativeArchiveFiles in Compile).value,
@@ -490,6 +500,7 @@ abstract class NativeBuild extends Build
             streams.value.log.info("Running test: " + texe)
 
             val po = ProcessHelper.runProcess(
+              nativeProjectBuildDirectory.value,
               log = streams.value.log,
               process = AbstractProcess( "Test exe", texe, Seq(), nativeProjectDirectory.value, (nativeEnvironmentVariables in Test).value.toMap ),
               mergeToStdout = true,

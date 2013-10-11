@@ -36,6 +36,7 @@ case class GccLikeCompiler(
         systemIncludePaths.map(ip => "-isystem" + ip.toString)
 
       val depResult = runProcess(
+        tmpDir=buildDirectory,
         log = log,
         process = AbstractProcess( "DepCmd", ccExe, depArgs, getCwd, Map("PATH" -> toolPaths.mkString(":") ) ),
         mergeToStdout = true,
@@ -74,6 +75,7 @@ case class GccLikeCompiler(
         systemIncludePaths.map(ip => "-isystem" + ip.toString)
 
       runProcess(
+        tmpDir=buildDirectory,      
         log=log,
         process = AbstractProcess( "CCCompile", ccExe, buildArgs, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
         mergeToStdout=true,
@@ -102,6 +104,7 @@ case class GccLikeCompiler(
         systemIncludePaths.map(ip => "-isystem" + ip.toString)
 
       runProcess(
+        tmpDir=buildDirectory,
         log=log,
         process = AbstractProcess("CXXCompile", cxxExe, buildArgs, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
         mergeToStdout=true,
@@ -124,6 +127,7 @@ case class GccLikeCompiler(
         outputFile.toString) ++ linkFlags ++ objectFiles.map(_.toString)
 
       runProcess(
+        tmpDir=buildDirectory,
         log=log,
         process = AbstractProcess("AR", archiverExe, arArgs, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
         mergeToStdout=true,
@@ -152,6 +156,7 @@ case class GccLikeCompiler(
         linkLibraries.map(ll => "-l" + ll)
 
       runProcess(
+        tmpDir=buildDirectory,
         log=log,
         process=AbstractProcess( "DynamicLibrary", cxxExe, args, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
         mergeToStdout=true,
@@ -178,6 +183,7 @@ case class GccLikeCompiler(
         linkLibraries.map(ll => "-l" + ll)
 
       runProcess(
+        tmpDir=buildDirectory,
         log=log,
         process=AbstractProcess("Exe", linkerExe, linkArgs, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
         mergeToStdout=true,
@@ -212,6 +218,7 @@ case class VSCompiler(
         systemIncludePaths.flatMap(ip => Seq("/I", ip.toString))
         
       val depResult = runProcess(
+        tmpDir=buildDirectory,
         log=log,
         process=AbstractProcess("DepCmd", ccExe, depArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
         mergeToStdout=true,
@@ -251,6 +258,7 @@ case class VSCompiler(
         systemIncludePaths.flatMap(ip => Seq("/I", ip.toString))
 
       runProcess(
+        tmpDir=buildDirectory,
         log=log,
         process=AbstractProcess("CCCompile", ccExe, buildArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
         mergeToStdout=true,
@@ -279,6 +287,7 @@ case class VSCompiler(
         systemIncludePaths.flatMap(ip => Seq("/I", ip.toString))
 
       runProcess(
+        tmpDir=buildDirectory,
         log=log,
         process=AbstractProcess("CXXCompile", cxxExe, buildArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
         mergeToStdout=true,
@@ -302,6 +311,7 @@ case class VSCompiler(
         objectFiles.map(_.toString)
 
       runProcess(
+        tmpDir=buildDirectory,
         log=log,
         process=AbstractProcess("AR", archiverExe, arArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
         mergeToStdout=true,
@@ -328,6 +338,7 @@ case class VSCompiler(
         objectFiles.map(_.toString)
 
       runProcess(
+        tmpDir=buildDirectory,
         log=log,
         process=AbstractProcess("DynamicLibrary", cxxExe, args, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
         mergeToStdout=true,
@@ -354,6 +365,7 @@ case class VSCompiler(
         linkLibraries.map(ll => "-l" + ll)
 
       runProcess(
+        tmpDir=buildDirectory,
         log=log,
         process=AbstractProcess("Executable", linkerExe, linkArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
         mergeToStdout=true,
