@@ -23,7 +23,7 @@ object TestBuild extends NativeDefaultBuild( "TestBuild" )
         // Check for a few expected headers and type sizes
         requireHeader( log, config.compiler, CCTest, "stdio.h" )
         requireHeader( log, config.compiler, CXXTest, "iostream" )
-        assert( !testForHeader( log, config.compiler, CCTest, "iostream" ) )
+        assert( !testForHeader( log, config.compiler, CCTest, "iostream" ), "Header (iostream) found when it should not have been" )
         
         requireSymbol( log, config.compiler, CCTest, "printf", Seq("stdio.h") )
         requireSymbol( log, config.compiler, CXXTest, "std::cout", Seq("iostream") )

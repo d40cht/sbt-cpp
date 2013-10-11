@@ -42,66 +42,6 @@ object FunctionWithResultPath
   }
 }
 
-class ProcessOutputToString(
-  val mergeToStdout: Boolean = false) extends ProcessLogger {
-  val stderr = mutable.ArrayBuffer[String]()
-  val stdout = mutable.ArrayBuffer[String]()
-
-  def stderrAppend(s: String) = this.synchronized {
-    stderr.append(s)
-  }
-
-  def stdoutAppend(s: String) = this.synchronized {
-    stdout.append(s)
-  }
-
-  override def buffer[T](f: => T) = f
-  override def error(s: => String) =
-    if (mergeToStdout) stdoutAppend(s) else stderrAppend(s)
-  override def info(s: => String) = stdoutAppend(s)
-}
-
-class ProcessOutputToLog(val log: Logger) extends ProcessOutputToString {
-  override def buffer[T](f: => T) = f
-  override def error(s: => String) = { super.error(s); log.error(s) }
-  override def info(s: => String) = { super.info(s); log.info(s) }
-}
-
-
-object ProcessHelper {
-  case class ProcessResult(
-    retCode: Int,
-    stdout: Seq[String],
-    stderr: Seq[String])
-
-  def runProcess(
-    log: Logger,
-    cmd: Seq[String],
-    cwd: File,
-    env: Seq[(String, String)],
-    quiet: Boolean) = {
-    val pl = new ProcessOutputToString(true)
-
-    log.debug("Executing: " + cmd.mkString(" "))
-    val res = Process(cmd, cwd, env: _*) ! pl
-
-    if (quiet) {
-      pl.stdout.foreach(log.debug(_))
-    } else {
-      if (res == 0) {
-        pl.stdout.foreach(log.warn(_))
-      } else {
-        pl.stdout.foreach(log.error(_))
-      }
-    }
-
-    if (res != 0)
-      throw new java.lang.RuntimeException("Non-zero exit code: " + res)
-
-    new ProcessResult(res, pl.stdout, pl.stderr)
-  }
-}
-
 
 class HeaderConfigFile(private val fileName: File) {
   private val defs = mutable.ArrayBuffer[(String, String)]()

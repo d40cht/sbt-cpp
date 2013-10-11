@@ -7,7 +7,8 @@ import com.typesafe.config.{ Config }
 
 import scala.collection.{ mutable, immutable }
 
-import ProcessHelper.{runProcess, ProcessResult}
+import ProcessHelper.{runProcess}
+
 
 /**
  * Gcc and compatible (e.g. Clang) compilers
@@ -25,8 +26,7 @@ case class GccLikeCompiler(
     quiet: Boolean) = FunctionWithResultPath(
     buildDirectory / (sourceFile.base + ".d")) { depFile =>
       val tmpDepFile = buildDirectory / (sourceFile.base + ".dt")
-      val depCmd: Seq[String] = Seq(
-        ccExe.toString,
+      val depArgs: Seq[String] = Seq(
         "-MF",
         tmpDepFile.toString,
         "-M",
@@ -36,11 +36,10 @@ case class GccLikeCompiler(
         systemIncludePaths.map(ip => "-isystem" + ip.toString)
 
       val depResult = runProcess(
-        log,
-        depCmd,
-        getCwd,
-        Seq("PATH" -> toolPaths.mkString(":")),
-        quiet)
+        log = log,
+        process = AbstractProcess( "DepCmd", ccExe, depArgs, getCwd, Map("PATH" -> toolPaths.mkString(":") ) ),
+        mergeToStdout = true,
+        quiet = true )
 
       // Strip off any trailing backslash characters from the output.
       val depFileLines = IO.readLines(tmpDepFile).map(_.replace("\\", ""))
@@ -64,8 +63,7 @@ case class GccLikeCompiler(
     compilerFlags: Seq[String],
     quiet: Boolean) = FunctionWithResultPath(
     buildDirectory / (sourceFile.base + ".o")) { outputFile =>
-      val buildCmd: Seq[String] = Seq(
-        ccExe.toString,
+      val buildArgs: Seq[String] = Seq(
         "-fPIC",
         "-c",
         "-o",
@@ -76,11 +74,10 @@ case class GccLikeCompiler(
         systemIncludePaths.map(ip => "-isystem" + ip.toString)
 
       runProcess(
-        log,
-        buildCmd,
-        getCwd,
-        Seq("PATH" -> toolPaths.mkString(":")),
-        quiet)
+        log=log,
+        process = AbstractProcess( "CCCompile", ccExe, buildArgs, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
+        mergeToStdout=true,
+        quiet=true)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -94,8 +91,7 @@ case class GccLikeCompiler(
     compilerFlags: Seq[String],
     quiet: Boolean) = FunctionWithResultPath(
     buildDirectory / (sourceFile.base + ".o")) { outputFile =>
-      val buildCmd: Seq[String] = Seq(
-        cxxExe.toString,
+      val buildArgs: Seq[String] = Seq(
         "-fPIC",
         "-c",
         "-o",
@@ -106,11 +102,10 @@ case class GccLikeCompiler(
         systemIncludePaths.map(ip => "-isystem" + ip.toString)
 
       runProcess(
-        log,
-        buildCmd,
-        getCwd,
-        Seq("PATH" -> toolPaths.mkString(":")),
-        quiet)
+        log=log,
+        process = AbstractProcess("CXXCompile", cxxExe, buildArgs, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
+        mergeToStdout=true,
+        quiet=true)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -123,18 +118,16 @@ case class GccLikeCompiler(
     linkFlags: Seq[String],
     quiet: Boolean) =
     FunctionWithResultPath(buildDirectory / (libName + ".a")) { outputFile =>
-      val arCmd: Seq[String] = Seq(
-        archiverExe.toString,
+      val arArgs: Seq[String] = Seq(
         "-c",
         "-r",
         outputFile.toString) ++ linkFlags ++ objectFiles.map(_.toString)
 
       runProcess(
-        log,
-        arCmd,
-        getCwd,
-        Seq("PATH" -> toolPaths.mkString(":")),
-        quiet)
+        log=log,
+        process = AbstractProcess("AR", archiverExe, arArgs, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
+        mergeToStdout=true,
+        quiet=true)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -149,8 +142,7 @@ case class GccLikeCompiler(
     linkFlags: Seq[String],
     quiet: Boolean) =
     FunctionWithResultPath(buildDirectory / (libName + ".so")) { outputFile =>
-      val cmd: Seq[String] = Seq(
-        cxxExe.toString,
+      val args: Seq[String] = Seq(
         "-shared",
         "-o",
         outputFile.toString) ++
@@ -160,11 +152,10 @@ case class GccLikeCompiler(
         linkLibraries.map(ll => "-l" + ll)
 
       runProcess(
-        log,
-        cmd,
-        getCwd,
-        Seq("PATH" -> toolPaths.mkString(":")),
-        quiet)
+        log=log,
+        process=AbstractProcess( "DynamicLibrary", cxxExe, args, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
+        mergeToStdout=true,
+        quiet=true)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -179,8 +170,7 @@ case class GccLikeCompiler(
     inputFiles: Seq[File],
     quiet: Boolean) =
     FunctionWithResultPath(buildDirectory / exeName) { outputFile =>
-      val linkCmd: Seq[String] = Seq(
-        linkerExe.toString,
+      val linkArgs: Seq[String] = Seq(
         "-o" + outputFile.toString) ++
         linkFlags ++
         inputFiles.map(_.toString) ++
@@ -188,11 +178,10 @@ case class GccLikeCompiler(
         linkLibraries.map(ll => "-l" + ll)
 
       runProcess(
-        log,
-        linkCmd,
-        getCwd,
-        Seq("PATH" -> toolPaths.mkString(":")),
-        quiet)
+        log=log,
+        process=AbstractProcess("Exe", linkerExe, linkArgs, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
+        mergeToStdout=true,
+        quiet=true)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -213,8 +202,7 @@ case class VSCompiler(
     compilerFlags: Seq[String],
     quiet: Boolean) = FunctionWithResultPath(
     buildDirectory / (sourceFile.base + ".d")) { depFile =>
-      val depCmd: Seq[String] = Seq(
-        ccExe.toString,
+      val depArgs: Seq[String] = Seq(
         "/nologo",
         "/c",
         "/showIncludes",
@@ -222,16 +210,16 @@ case class VSCompiler(
         compilerFlags ++
         includePaths.flatMap(ip => Seq("/I", ip.toString)) ++
         systemIncludePaths.flatMap(ip => Seq("/I", ip.toString))
+        
       val depResult = runProcess(
-        log,
-        depCmd,
-        getCwd,
-        Seq("PATH" -> toolPaths.mkString(";")),
-        quiet = true)
+        log=log,
+        process=AbstractProcess("DepCmd", ccExe, depArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
+        mergeToStdout=true,
+        quiet=true)
 
       // Strip off any trailing backslash characters from the output.
       val prefix = "Note: including file:"
-      val depFileLines = depResult.stdout.filter(_.startsWith(prefix)).map(
+      val depFileLines = depResult.stdoutLines.filter(_.startsWith(prefix)).map(
         _.drop(prefix.size).trim)
 
       // Drop the first column and split on spaces to get all the files 
@@ -252,8 +240,7 @@ case class VSCompiler(
     compilerFlags: Seq[String],
     quiet: Boolean) = FunctionWithResultPath(
     buildDirectory / (sourceFile.base + ".obj")) { outputFile =>
-      val buildCmd: Seq[String] = Seq(
-        ccExe.toString,
+      val buildArgs: Seq[String] = Seq(
         "/nologo",
         "/c",
         "/EHsc",
@@ -264,11 +251,10 @@ case class VSCompiler(
         systemIncludePaths.flatMap(ip => Seq("/I", ip.toString))
 
       runProcess(
-        log,
-        buildCmd,
-        getCwd,
-        Seq("PATH" -> toolPaths.mkString(";")),
-        quiet)
+        log=log,
+        process=AbstractProcess("CCCompile", ccExe, buildArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
+        mergeToStdout=true,
+        quiet=true)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -282,8 +268,7 @@ case class VSCompiler(
     compilerFlags: Seq[String],
     quiet: Boolean) = FunctionWithResultPath(
     buildDirectory / (sourceFile.base + ".obj")) { outputFile =>
-      val buildCmd: Seq[String] = Seq(
-        cxxExe.toString,
+      val buildArgs: Seq[String] = Seq(
         "/nologo",
         "/c",
         "/EHsc",
@@ -294,11 +279,10 @@ case class VSCompiler(
         systemIncludePaths.flatMap(ip => Seq("/I", ip.toString))
 
       runProcess(
-        log,
-        buildCmd,
-        getCwd,
-        Seq("PATH" -> toolPaths.mkString(";")),
-        quiet)
+        log=log,
+        process=AbstractProcess("CXXCompile", cxxExe, buildArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
+        mergeToStdout=true,
+        quiet=true)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -311,19 +295,17 @@ case class VSCompiler(
     linkFlags: Seq[String],
     quiet: Boolean) =
     FunctionWithResultPath(buildDirectory / (libName + ".lib")) { outputFile =>
-      val arCmd: Seq[String] = Seq(
-        archiverExe.toString,
+      val arArgs: Seq[String] = Seq(
         "/nologo",
         "/OUT:" + outputFile.toString) ++
         linkFlags ++
         objectFiles.map(_.toString)
 
       runProcess(
-        log,
-        arCmd,
-        getCwd,
-        Seq("PATH" -> toolPaths.mkString(";")),
-        quiet)
+        log=log,
+        process=AbstractProcess("AR", archiverExe, arArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
+        mergeToStdout=true,
+        quiet=true)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -338,8 +320,7 @@ case class VSCompiler(
     linkFlags: Seq[String],
     quiet: Boolean) = FunctionWithResultPath(
     buildDirectory / ("lib" + libName + ".so")) { outputFile =>
-      val cmd: Seq[String] = Seq(
-        cxxExe.toString,
+      val args: Seq[String] = Seq(
         "/nologo",
         "/DLL",
         "/OUT:" + outputFile.toString) ++
@@ -347,11 +328,10 @@ case class VSCompiler(
         objectFiles.map(_.toString)
 
       runProcess(
-        log,
-        cmd,
-        getCwd,
-        Seq("PATH" -> toolPaths.mkString(";")),
-        quiet)
+        log=log,
+        process=AbstractProcess("DynamicLibrary", cxxExe, args, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
+        mergeToStdout=true,
+        quiet=true)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -366,8 +346,7 @@ case class VSCompiler(
     inputFiles: Seq[File],
     quiet: Boolean) =
     FunctionWithResultPath(buildDirectory / exeName) { outputFile =>
-      val linkCmd: Seq[String] = Seq(
-        linkerExe.toString,
+      val linkArgs: Seq[String] = Seq(
         "/nologo",
         "/OUT:" + outputFile.toString) ++
         inputFiles.map(_.toString) ++
@@ -375,11 +354,10 @@ case class VSCompiler(
         linkLibraries.map(ll => "-l" + ll)
 
       runProcess(
-        log,
-        linkCmd,
-        getCwd,
-        Seq("PATH" -> toolPaths.mkString(";")),
-        quiet)
+        log=log,
+        process=AbstractProcess("Executable", linkerExe, linkArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
+        mergeToStdout=true,
+        quiet=true)
 
       reportFileGenerated(log, outputFile, quiet)
     }

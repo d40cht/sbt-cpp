@@ -490,13 +490,12 @@ abstract class NativeBuild extends Build
             streams.value.log.info("Running test: " + texe)
 
             val po = ProcessHelper.runProcess(
-              streams.value.log,
-              Seq(texe.toString),
-              nativeProjectDirectory.value,
-              (nativeEnvironmentVariables in Test).value,
-              quiet = true)
+              log = streams.value.log,
+              process = AbstractProcess( "Test exe", texe, Seq(), nativeProjectDirectory.value, (nativeEnvironmentVariables in Test).value.toMap ),
+              mergeToStdout = true,
+              quiet = true )
 
-            IO.writeLines(stdoutFile, po.stdout)
+            IO.writeLines(stdoutFile, po.stdoutLines)
             IO.writeLines(resFile, Seq(po.retCode.toString))
 
           }
