@@ -40,7 +40,7 @@ case class GccLikeCompiler(
         log = log,
         process = AbstractProcess( "DepCmd", ccExe, depArgs, getCwd, Map("PATH" -> toolPaths.mkString(":") ) ),
         mergeToStdout = true,
-        quiet = true )
+        quiet=false )
 
       // Strip off any trailing backslash characters from the output.
       val depFileLines = IO.readLines(tmpDepFile).map(_.replace("\\", ""))
@@ -79,7 +79,7 @@ case class GccLikeCompiler(
         log=log,
         process = AbstractProcess( "CCCompile", ccExe, buildArgs, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
         mergeToStdout=true,
-        quiet=true)
+        quiet=false )
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -108,7 +108,7 @@ case class GccLikeCompiler(
         log=log,
         process = AbstractProcess("CXXCompile", cxxExe, buildArgs, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
         mergeToStdout=true,
-        quiet=true)
+        quiet=false)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -131,7 +131,7 @@ case class GccLikeCompiler(
         log=log,
         process = AbstractProcess("AR", archiverExe, arArgs, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
         mergeToStdout=true,
-        quiet=true)
+        quiet=false)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -160,7 +160,7 @@ case class GccLikeCompiler(
         log=log,
         process=AbstractProcess( "DynamicLibrary", cxxExe, args, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
         mergeToStdout=true,
-        quiet=true)
+        quiet=false)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -187,7 +187,7 @@ case class GccLikeCompiler(
         log=log,
         process=AbstractProcess("Exe", linkerExe, linkArgs, getCwd, Map("PATH" -> toolPaths.mkString(":")) ),
         mergeToStdout=true,
-        quiet=true)
+        quiet=false)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -222,7 +222,7 @@ case class VSCompiler(
         log=log,
         process=AbstractProcess("DepCmd", ccExe, depArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
         mergeToStdout=true,
-        quiet=true)
+        quiet=false)
 
       // Strip off any trailing backslash characters from the output.
       val prefix = "Note: including file:"
@@ -262,7 +262,7 @@ case class VSCompiler(
         log=log,
         process=AbstractProcess("CCCompile", ccExe, buildArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
         mergeToStdout=true,
-        quiet=true)
+        quiet=false)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -291,7 +291,7 @@ case class VSCompiler(
         log=log,
         process=AbstractProcess("CXXCompile", cxxExe, buildArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
         mergeToStdout=true,
-        quiet=true)
+        quiet=false)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -315,7 +315,7 @@ case class VSCompiler(
         log=log,
         process=AbstractProcess("AR", archiverExe, arArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
         mergeToStdout=true,
-        quiet=true)
+        quiet=false)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -342,7 +342,7 @@ case class VSCompiler(
         log=log,
         process=AbstractProcess("DynamicLibrary", cxxExe, args, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
         mergeToStdout=true,
-        quiet=true)
+        quiet=false)
 
       reportFileGenerated(log, outputFile, quiet)
     }
@@ -369,7 +369,7 @@ case class VSCompiler(
         log=log,
         process=AbstractProcess("Executable", linkerExe, linkArgs, getCwd, Map("PATH" -> toolPaths.mkString(";")) ),
         mergeToStdout=true,
-        quiet=true)
+        quiet=false)
 
       reportFileGenerated(log, outputFile, quiet)
     }

@@ -86,7 +86,7 @@ object ProcessHelper
             IO.readLines( res.stdout ).foreach( log.error(_) )
         }
         
-        if ( res.retCode != 0 ) throw new java.lang.RuntimeException("Non-zero exit code: " + res.retCode)
+        if ( res.retCode != 0 ) throw new java.lang.RuntimeException("Non-zero exit code: " + res.retCode )
         
         res
     }

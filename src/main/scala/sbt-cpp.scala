@@ -196,7 +196,7 @@ abstract class NativeBuild extends Build
   val nativeSystemIncludeDirectories = TaskKey[Seq[File]]("nativeSystemIncludeDirectories", "System include directories")
   val nativeLinkDirectories = TaskKey[Seq[File]]("nativeLinkDirectories", "Link directories")
   val nativeLibraries = TaskKey[Seq[String]]("nativeLibraries", "All native library dependencies for this project")
-  val nativeHeaderSourceFiles = TaskKey[Seq[File]]("nativeHeaderSourceFiles", "All C source files for this project")
+  val nativeHeaderFiles = TaskKey[Seq[File]]("nativeHeaderFiles", "All C source files for this project")
   val nativeCCSourceFiles = TaskKey[Seq[File]]("nativeCCSourceFiles", "All C source files for this project")
   val nativeCXXSourceFiles = TaskKey[Seq[File]]("nativeCXXSourceFiles", "All C++ source files for this project")
   val nativeCCSourceFilesWithDeps = TaskKey[Seq[(File, Seq[File])]]("nativeCCSourceFilesWithDeps", "All C source files with dependencies for this project")
@@ -205,7 +205,6 @@ abstract class NativeBuild extends Build
   val nativeArchiveFiles = TaskKey[Seq[File]]("nativeArchiveFiles", "All archive files for this project, specified by full path")
   val nativeExe = TaskKey[File]("nativeExe", "Executable built by this project (if appropriate)")
   val nativeTestExe = TaskKey[Option[File]]("nativeTestExe", "Test executable built by this project (if appropriate)")
-  val nativeRun = TaskKey[Unit]("nativeRun", "Perform a native run of this project")
   val nativeTestProject = TaskKey[Project]("nativeTestProject", "The test sub-project for this project")
   val nativeTestExtraDependencies = TaskKey[Seq[File]]("nativeTestExtraDependencies", "Extra file dependencies of the test (used to calculate when to re-run tests)")
   val nativeTest = TaskKey[Option[(File, File)]]("nativeTest", "Run the native test, returning the files with stdout and stderr respectively")
@@ -357,7 +356,7 @@ abstract class NativeBuild extends Build
       
     def scheduleTasks[T]( tasks : Seq[sbt.Def.Initialize[sbt.Task[T]]] ) = Def.taskDyn { tasks.joinWith( _.join ) }
       
-    def findDependencies(sourceFile: File) = Def.task
+    def findDependencies( sourceFile: File, compileFlags : TaskKey[Seq[String]] ) = Def.task
     {
       val depGen = nativeCompiler.value.findHeaderDependencies(
         state.value.log,
@@ -365,7 +364,7 @@ abstract class NativeBuild extends Build
         nativeIncludeDirectories.value,
         nativeSystemIncludeDirectories.value,
         sourceFile,
-        nativeCCCompileFlags.value)
+        compileFlags.value)
 
       depGen.runIfNotCached(nativeStateCacheDirectory.value, Seq(sourceFile))
 
@@ -374,7 +373,7 @@ abstract class NativeBuild extends Build
 
     def buildSettings = Seq(
       // Headers are collected for the purposes of IDE output generation, not explicitly used by SBT builds
-      nativeHeaderSourceFiles   := nativeProjectIncludeDirectories.value.flatMap( sd => headerFilePattern.flatMap(fp => (sd * fp).get) ),
+      nativeHeaderFiles   		:= nativeProjectIncludeDirectories.value.flatMap( sd => headerFilePattern.flatMap(fp => (sd * fp).get) ),
       
       nativeCCSourceFiles       := nativeSourceDirectories.value.flatMap( sd => ccFilePattern.flatMap(fp => (sd * fp).get) ),
 
@@ -398,13 +397,13 @@ abstract class NativeBuild extends Build
       
       nativeCCSourceFilesWithDeps := Def.taskDyn
       {
-        nativeCCSourceFiles.value.map { findDependencies _ }.joinWith( _.join )
+        nativeCCSourceFiles.value.map { findDependencies( _, nativeCCCompileFlags ) }.joinWith( _.join )
       }.value,
         
         
       nativeCXXSourceFilesWithDeps := Def.taskDyn
       {
-        nativeCXXSourceFiles.value.map { findDependencies _ }.joinWith( _.join )
+        nativeCXXSourceFiles.value.map { findDependencies( _, nativeCXXCompileFlags ) }.joinWith( _.join )
       }.value,
 
       nativeEnvironmentVariables := Seq(),
