@@ -4,7 +4,7 @@ name := "sbt-cpp"
 
 organization := "org.seacourt.build"
 
-version := "0.0.38"
+version := "0.1.0"
 
 publishMavenStyle := false
 
