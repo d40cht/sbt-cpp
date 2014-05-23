@@ -45,7 +45,7 @@ class LocalRunner( val tmpDir : File ) extends AbstractRunner
         def writeToStderr( line : String ) =
         {
             if ( joinStdOutStdErr ) writeToStdout( line )
-            else stdoutPW.write( line + "\n" )
+            else stderrPW.write( line + "\n" )
         }
         
         val retCode = try
