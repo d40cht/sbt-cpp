@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ivy-module version="2.0" xmlns:e="http://ant.apache.org/ivy/extra">
+	<info organisation="org.seacourt.build" module="sbt-cpp" revision="0.1.1" status="release" publication="20140527133659" e:scalaVersion="2.10" e:sbtVersion="0.13">
+		<description>
+		sbt-cpp
+		</description>
+	</info>
+	<configurations>
+		<conf name="compile" visibility="public" description=""/>
+		<conf name="runtime" visibility="public" description="" extends="compile"/>
+		<conf name="test" visibility="public" description="" extends="runtime"/>
+		<conf name="provided" visibility="public" description=""/>
+		<conf name="optional" visibility="public" description=""/>
+		
+		
+		
+		
+		<conf name="sources" visibility="public" description=""/>
+		<conf name="docs" visibility="public" description=""/>
+		<conf name="pom" visibility="public" description=""/>
+		
+	</configurations>
+	<publications>
+		<artifact name="sbt-cpp" type="jar" ext="jar" conf="compile"/>
+		<artifact name="sbt-cpp" type="src" ext="jar" conf="sources" e:classifier="sources"/>
+		<artifact name="sbt-cpp" type="doc" ext="jar" conf="docs" e:classifier="javadoc"/>
+	</publications>
+	<dependencies>
+		
+		<dependency org="org.scala-lang" name="scala-library" rev="2.10.2" conf="provided->default(compile)"/>
+		<dependency org="org.scala-sbt" name="sbt" rev="0.13.0" conf="provided->default(compile)"/>
+		<dependency org="com.typesafe" name="config" rev="1.0.1" conf="compile->default(compile)"/>
+		<dependency org="com.sleepycat" name="je" rev="4.0.92" conf="compile->default(compile)"/>
+		<dependency org="org.scalatest" name="scalatest_2.10" rev="1.9.1" conf="test->default(compile)"/>
+	</dependencies>
+</ivy-module>
