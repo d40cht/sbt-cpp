@@ -203,7 +203,7 @@ abstract class NativeBuild extends Build
   val nativeCXXSourceFilesWithDeps = taskKey[Seq[(File, Seq[File])]]("All C++ source files with dependencies for this project")
   val nativeObjectFiles = taskKey[Seq[File]]("All object files for this project")
   val nativeArchiveFiles = taskKey[Seq[File]]("All archive files for this project, specified by full path")
-  val nativeExe = taskKey[File]("Executable built by this project (if appropriate)")
+  val nativeExe = taskKey[Option[File]]("Executable built by this project (if appropriate)")
   val nativeTestExe = taskKey[Option[File]]("Test executable built by this project (if appropriate)")
   val nativeTestProject = taskKey[Project]("The test sub-project for this project")
   val nativeTestExtraDependencies = taskKey[Seq[File]]("Extra file dependencies of the test (used to calculate when to re-run tests)")
@@ -352,7 +352,7 @@ abstract class NativeBuild extends Build
       nativeExportedLibs := Seq(),
       nativeExportedLibDirectories := Seq(),
       nativeExportedIncludeDirectories := Seq(),
-      nativeExe := file(""))
+      nativeExe := None)
       
     def scheduleTasks[T]( tasks : Seq[sbt.Def.Initialize[sbt.Task[T]]] ) = Def.taskDyn { tasks.joinWith( _.join ) }
       
@@ -628,7 +628,7 @@ abstract class NativeBuild extends Build
           nativeLibraries.value,
           allInputFiles )
 
-        blf.runIfNotCached(nativeStateCacheDirectory.value, allInputFiles)
+        Some( blf.runIfNotCached(nativeStateCacheDirectory.value, allInputFiles) )
       },
       nativeTestExe in Test := None,
       
